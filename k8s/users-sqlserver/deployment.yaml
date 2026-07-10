@@ -1,0 +1,51 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: users-sqlserver
+  namespace: fiap-cloud-games
+  labels:
+    app: users-sqlserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: users-sqlserver
+  template:
+    metadata:
+      labels:
+        app: users-sqlserver
+    spec:
+      securityContext:
+        fsGroup: 10001
+      containers:
+        - name: users-sqlserver
+          image: mcr.microsoft.com/mssql/server:2022-latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: sqlserver
+              containerPort: 1433
+          envFrom:
+            - secretRef:
+                name: users-sqlserver-secret
+          volumeMounts:
+            - name: users-sqlserver-data
+              mountPath: /var/opt/mssql
+          startupProbe:
+            tcpSocket:
+              port: sqlserver
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: sqlserver
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: sqlserver
+            initialDelaySeconds: 60
+            periodSeconds: 20
+      volumes:
+        - name: users-sqlserver-data
+          persistentVolumeClaim:
+            claimName: users-sqlserver-pvc

@@ -1,0 +1,11 @@
+﻿apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - rabbitmq/secret.yaml
+  - rabbitmq/deployment.yaml
+  - rabbitmq/service.yaml
+  - users-sqlserver/secret.yaml
+  - users-sqlserver/pvc.yaml
+  - users-sqlserver/deployment.yaml
+  - users-sqlserver/service.yaml
