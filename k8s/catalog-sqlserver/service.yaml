@@ -1,0 +1,15 @@
+﻿apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-sqlserver
+  namespace: fiap-cloud-games
+  labels:
+    app: catalog-sqlserver
+spec:
+  type: ClusterIP
+  selector:
+    app: catalog-sqlserver
+  ports:
+    - name: sqlserver
+      port: 1433
+      targetPort: sqlserver

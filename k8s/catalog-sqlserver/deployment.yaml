@@ -1,0 +1,51 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-sqlserver
+  namespace: fiap-cloud-games
+  labels:
+    app: catalog-sqlserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: catalog-sqlserver
+  template:
+    metadata:
+      labels:
+        app: catalog-sqlserver
+    spec:
+      securityContext:
+        fsGroup: 10001
+      containers:
+        - name: catalog-sqlserver
+          image: mcr.microsoft.com/mssql/server:2022-latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: sqlserver
+              containerPort: 1433
+          envFrom:
+            - secretRef:
+                name: catalog-sqlserver-secret
+          volumeMounts:
+            - name: catalog-sqlserver-data
+              mountPath: /var/opt/mssql
+          startupProbe:
+            tcpSocket:
+              port: sqlserver
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: sqlserver
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: sqlserver
+            initialDelaySeconds: 60
+            periodSeconds: 20
+      volumes:
+        - name: catalog-sqlserver-data
+          persistentVolumeClaim:
+            claimName: catalog-sqlserver-pvc

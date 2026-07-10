@@ -9,3 +9,7 @@ resources:
   - users-sqlserver/pvc.yaml
   - users-sqlserver/deployment.yaml
   - users-sqlserver/service.yaml
+  - catalog-sqlserver/secret.yaml
+  - catalog-sqlserver/pvc.yaml
+  - catalog-sqlserver/deployment.yaml
+  - catalog-sqlserver/service.yaml
