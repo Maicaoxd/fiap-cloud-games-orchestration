@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: users-api-migration
+  namespace: fiap-cloud-games
+  labels:
+    app: users-api
+    job: users-api-migration
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels:
+        app: users-api
+        job: users-api-migration
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: users-api-migration
+          image: maicaoxd/fiap-cloud-games-users-api:0.1.1
+          imagePullPolicy: IfNotPresent
+          command: ["dotnet", "UsersAPI.dll", "--migrate"]
+          envFrom:
+            - configMapRef:
+                name: users-api-configmap
+            - secretRef:
+                name: users-api-secret

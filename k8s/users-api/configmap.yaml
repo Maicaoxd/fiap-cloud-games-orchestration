@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: users-api-configmap
+  namespace: fiap-cloud-games
+data:
+  ASPNETCORE_ENVIRONMENT: Development
+  ASPNETCORE_URLS: http://+:8080
+  Api__UseDeveloperExceptionPage: "false"
+  Jwt__Issuer: FiapCloudGames
+  Jwt__Audience: FiapCloudGames
+  Jwt__ExpirationMinutes: "60"
+  RabbitMq__Host: rabbitmq
+  RabbitMq__Port: "5672"
+  RabbitMq__VirtualHost: /

@@ -1,8 +1,8 @@
-﻿# FIAP Cloud Games - Orchestration
+# FIAP Cloud Games - Orchestration
 
 Repositorio de orquestracao local da Fase 2 do Tech Challenge FIAP Cloud Games.
 
-Este repositorio nao contem codigo C#. Ele centraliza a infraestrutura local para subir os microsservicos e dependencias com Docker Compose.
+Este repositorio centraliza Docker Compose e Kubernetes para subir a aplicacao completa com os quatro microsservicos, RabbitMQ e bancos SQL Server.
 
 ## Repositorios esperados
 
@@ -12,15 +12,12 @@ A estrutura local esperada e que os repositorios fiquem lado a lado:
 C:\Projetos\FIAP\Projetos\
   fiap-cloud-games-orchestration\
   fiap-cloud-games-users-api\
+  fiap-cloud-games-catalog-api\
+  fiap-cloud-games-payments-api\
   fiap-cloud-games-notifications-api\
 ```
 
-O `docker-compose.yml` deste repositorio usa `build.context` apontando para os repositorios irmaos:
-
-```text
-../fiap-cloud-games-users-api
-../fiap-cloud-games-notifications-api
-```
+O `docker-compose.yml` usa `build.context` apontando para esses repositorios irmaos.
 
 ## Servicos
 
@@ -28,8 +25,13 @@ O compose sobe:
 
 - `rabbitmq`: broker de mensageria com Management UI.
 - `users-sqlserver`: banco SQL Server da UsersAPI.
-- `users-api`: microsservico de usuarios.
-- `notifications-api`: microsservico de notificacoes.
+- `catalog-sqlserver`: banco SQL Server da CatalogAPI.
+- `users-api-migrator`: aplica migrations da UsersAPI.
+- `catalog-api-migrator`: aplica migrations da CatalogAPI.
+- `users-api`: cadastro, login, JWT e publicacao de `UserCreatedEvent`.
+- `catalog-api`: CRUD de jogos, compra e consumo de `PaymentProcessedEvent`.
+- `payments-api`: consumo de `OrderPlacedEvent` e publicacao de `PaymentProcessedEvent`.
+- `notifications-api`: consumo de `UserCreatedEvent` e `PaymentProcessedEvent`.
 
 ## Portas
 
@@ -37,9 +39,12 @@ O compose sobe:
 |---|---:|---:|---|
 | UsersAPI | `5001` | `8080` | `http://localhost:5001/swagger` |
 | NotificationsAPI | `5002` | `8080` | `http://localhost:5002/swagger` |
+| CatalogAPI | `5003` | `8080` | `http://localhost:5003/swagger` |
+| PaymentsAPI | `5004` | `8080` | `http://localhost:5004/swagger` |
 | RabbitMQ AMQP | `5672` | `5672` | `amqp://localhost:5672` |
 | RabbitMQ Management | `15672` | `15672` | `http://localhost:15672` |
 | SQL Server Users | `1433` | `1433` | `localhost,1433` |
+| SQL Server Catalog | `1434` | `1433` | `localhost,1434` |
 
 RabbitMQ Management:
 
@@ -51,15 +56,11 @@ senha: guest
 SQL Server local:
 
 ```text
-Server: localhost,1433
 User: sa
 Password: Fcg@123456
-Database: FiapCloudGamesUsers
+Users database:   FiapCloudGamesUsers
+Catalog database: FiapCloudGamesCatalog
 ```
-
-## Arquivo .env.example
-
-O arquivo .env.example documenta portas e credenciais locais usadas no compose. Nesta primeira versao, o docker-compose.yml ja esta autocontido, entao voce nao precisa criar .env para subir o ambiente.
 
 ## Subir ambiente completo
 
@@ -85,94 +86,118 @@ Ver logs:
 
 ```powershell
 docker compose logs -f users-api
+docker compose logs -f catalog-api
+docker compose logs -f payments-api
 docker compose logs -f notifications-api
 ```
 
-## Banco e migrations
+## Banco e migrations no Docker Compose
 
-No Kubernetes, as migrations da UsersAPI sao executadas por um `Job` no repositorio da UsersAPI.
+O compose executa migrations automaticamente antes de subir UsersAPI e CatalogAPI:
 
-O Job usa a mesma imagem da UsersAPI e executa:
+```text
+users-sqlserver saudavel -> users-api-migrator -> users-api
+catalog-sqlserver saudavel -> catalog-api-migrator -> catalog-api
+```
+
+Os migrators usam as mesmas imagens das APIs e executam:
 
 ```powershell
 dotnet UsersAPI.dll --migrate
+dotnet CatalogAPI.dll --migrate
 ```
 
-Depois que o Job termina com sucesso, o Deployment da UsersAPI pode subir usando o banco ja migrado.
+A migration da UsersAPI tambem cria o administrador inicial:
 
-No Docker Compose, este repositorio nao aplica migrations automaticamente. Se o volume do SQL Server estiver vazio, aplique a migration pelo fluxo local da UsersAPI antes de testar endpoints que dependem das tabelas.
+```text
+e-mail: admin@email.com
+CPF: 52998224725
+data de nascimento: 1990-01-01
+role: Administrator
+```
+
+Para definir uma senha local, use o endpoint `POST /api/auth/forgot-password` da UsersAPI com esses dados de recuperacao.
 
 ## Health checks
 
-UsersAPI:
-
 ```text
-http://localhost:5001/health/live
-http://localhost:5001/health
-http://localhost:5001/health/ready
+UsersAPI:         http://localhost:5001/health
+NotificationsAPI: http://localhost:5002/health
+CatalogAPI:       http://localhost:5003/health
+PaymentsAPI:      http://localhost:5004/health
 ```
 
-O readiness da UsersAPI valida:
+O readiness de UsersAPI e CatalogAPI valida SQL Server e RabbitMQ.
+O readiness de PaymentsAPI e NotificationsAPI valida RabbitMQ.
 
-- SQL Server
-- RabbitMQ
-
-NotificationsAPI:
+## Fluxo completo esperado
 
 ```text
-http://localhost:5002/health/live
-http://localhost:5002/health
-http://localhost:5002/health/ready
+UsersAPI publica UserCreatedEvent
+  -> NotificationsAPI consome e simula e-mail de boas-vindas
+
+CatalogAPI publica OrderPlacedEvent
+  -> PaymentsAPI consome e publica PaymentProcessedEvent
+  -> CatalogAPI consome e adiciona jogos na biblioteca se Approved
+  -> NotificationsAPI consome e simula e-mail de confirmacao se Approved
 ```
 
-O readiness da NotificationsAPI valida:
+## Kubernetes
 
-- RabbitMQ
+Os manifests ficam em `k8s/` e usam `Kustomization` para consolidar infraestrutura e aplicacoes.
 
-## Teste do fluxo Users -> Notifications
-
-1. Suba tudo:
+Aplicar:
 
 ```powershell
-docker compose up --build
+kubectl apply -k .\k8s
 ```
 
-2. Abra o Swagger da UsersAPI:
-
-```text
-http://localhost:5001/swagger
-```
-
-3. Cadastre um usuario no endpoint `POST /api/users`.
-
-Exemplo via PowerShell:
+Validar recursos:
 
 ```powershell
-curl -X POST "http://localhost:5001/api/users" `
-  -H "Content-Type: application/json" `
-  -d '{
-    "name": "Maicon Guedes",
-    "email": "maicon@email.com",
-    "cpf": "529.982.247-25",
-    "birthDate": "1993-06-17",
-    "password": "Senha@123",
-    "confirmPassword": "Senha@123"
-  }'
+kubectl get pods -n fiap-cloud-games
+kubectl get services -n fiap-cloud-games
+kubectl get jobs -n fiap-cloud-games
 ```
 
-4. Veja os logs da NotificationsAPI:
+Ver logs:
 
 ```powershell
-docker compose logs -f notifications-api
+kubectl logs deployment/users-api -n fiap-cloud-games
+kubectl logs deployment/catalog-api -n fiap-cloud-games
+kubectl logs deployment/payments-api -n fiap-cloud-games
+kubectl logs deployment/notifications-api -n fiap-cloud-games
 ```
 
-Log esperado:
+Expor uma API localmente:
+
+```powershell
+kubectl port-forward svc/users-api 5001:80 -n fiap-cloud-games
+kubectl port-forward svc/catalog-api 5003:80 -n fiap-cloud-games
+kubectl port-forward svc/payments-api 5004:80 -n fiap-cloud-games
+kubectl port-forward svc/notifications-api 5002:80 -n fiap-cloud-games
+```
+
+Expor RabbitMQ Management:
+
+```powershell
+kubectl port-forward svc/rabbitmq 15672:15672 -n fiap-cloud-games
+```
+
+## Docker Hub
+
+Os manifests Kubernetes usam imagens do Docker Hub:
 
 ```text
-E-mail de boas-vindas enviado para Maicon Guedes (maicon@email.com).
+maicaoxd/fiap-cloud-games-users-api:0.1.1
+maicaoxd/fiap-cloud-games-catalog-api:0.1.0
+maicaoxd/fiap-cloud-games-payments-api:0.1.0
+maicaoxd/fiap-cloud-games-notifications-api:0.1.0
 ```
 
-## Parar ambiente
+Sempre que alterar codigo de uma API usada pelo Kubernetes, gere uma nova tag, faca push e atualize o manifesto correspondente.
+
+## Parar ambiente Docker
 
 Parar containers mantendo volumes:
 
@@ -180,7 +205,7 @@ Parar containers mantendo volumes:
 docker compose down
 ```
 
-Parar e apagar volumes, incluindo banco SQL Server:
+Parar e apagar volumes, incluindo bancos SQL Server:
 
 ```powershell
 docker compose down -v
@@ -190,41 +215,31 @@ docker compose down -v
 
 ### Porta ja em uso
 
-Se `1433`, `5672`, `15672`, `5001` ou `5002` ja estiverem ocupadas, o compose pode falhar.
+Se `1433`, `1434`, `5672`, `15672`, `5001`, `5002`, `5003` ou `5004` ja estiverem ocupadas, o compose pode falhar.
 
-Verifique containers rodando:
+### API unhealthy
 
-```powershell
-docker ps
-```
-
-### UsersAPI unhealthy
-
-Confira se SQL Server e RabbitMQ estao saudaveis:
+Confira dependencias e logs:
 
 ```powershell
 docker compose ps
-docker compose logs users-sqlserver
 docker compose logs rabbitmq
+docker compose logs users-sqlserver
+docker compose logs catalog-sqlserver
 ```
 
-### Banco sem tabelas
+### Job de migration falhou no Kubernetes
 
-No Kubernetes, confira os logs do Job de migration. No Docker Compose, confirme se as migrations foram aplicadas pelo fluxo local da UsersAPI antes de testar endpoints que usam o banco.
+Veja os logs do job:
 
 ```powershell
-docker compose logs users-api
+kubectl logs job/users-api-migration -n fiap-cloud-games
+kubectl logs job/catalog-api-migration -n fiap-cloud-games
 ```
 
-### NotificationsAPI nao recebe evento
+Se precisar recriar um Job ja concluido:
 
-Confira se ela esta conectada no RabbitMQ e se existe fila criada no Management UI:
-
-```text
-http://localhost:15672
+```powershell
+kubectl delete job users-api-migration catalog-api-migration -n fiap-cloud-games
+kubectl apply -k .\k8s
 ```
-
-Quando o consumer funciona, a mensagem pode nao ficar parada na fila. Ela entra, e logo depois sai com ACK.
-
-
-

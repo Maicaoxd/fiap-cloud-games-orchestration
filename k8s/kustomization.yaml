@@ -13,3 +13,21 @@ resources:
   - catalog-sqlserver/pvc.yaml
   - catalog-sqlserver/deployment.yaml
   - catalog-sqlserver/service.yaml
+  - users-api/configmap.yaml
+  - users-api/secret.yaml
+  - users-api/migration-job.yaml
+  - users-api/deployment.yaml
+  - users-api/service.yaml
+  - catalog-api/configmap.yaml
+  - catalog-api/secret.yaml
+  - catalog-api/migration-job.yaml
+  - catalog-api/deployment.yaml
+  - catalog-api/service.yaml
+  - payments-api/configmap.yaml
+  - payments-api/secret.yaml
+  - payments-api/deployment.yaml
+  - payments-api/service.yaml
+  - notifications-api/configmap.yaml
+  - notifications-api/secret.yaml
+  - notifications-api/deployment.yaml
+  - notifications-api/service.yaml

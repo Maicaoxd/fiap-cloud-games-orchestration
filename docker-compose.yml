@@ -1,6 +1,6 @@
-﻿services:
+services:
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3.13-management
     hostname: rabbitmq
     ports:
       - "5672:5672"
@@ -35,24 +35,154 @@
     networks:
       - fcg-network
 
-  users-api:
+  catalog-sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Fcg@123456"
+      MSSQL_PID: "Developer"
+    ports:
+      - "1434:1433"
+    volumes:
+      - catalog-sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\" || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -Q \"SELECT 1\""]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    networks:
+      - fcg-network
+
+  users-api-migrator:
     build:
       context: ../fiap-cloud-games-users-api
       dockerfile: Dockerfile
-    ports:
-      - "5001:8080"
+    image: fiap-cloud-games-users-api:local
+    command: ["dotnet", "UsersAPI.dll", "--migrate"]
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
-      ASPNETCORE_URLS: "http://+:8080"
       ConnectionStrings__DefaultConnection: "Server=users-sqlserver,1433;Database=FiapCloudGamesUsers;User Id=sa;Password=Fcg@123456;TrustServerCertificate=True;Encrypt=False"
       RabbitMq__Host: "rabbitmq"
       RabbitMq__Port: "5672"
       RabbitMq__VirtualHost: "/"
       RabbitMq__Username: "guest"
       RabbitMq__Password: "guest"
+      Jwt__Issuer: "FiapCloudGames"
+      Jwt__Audience: "FiapCloudGames"
+      Jwt__Secret: "fiap-cloud-games-local-development-secret-key"
+      Jwt__ExpirationMinutes: "60"
     depends_on:
       users-sqlserver:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - fcg-network
+
+  catalog-api-migrator:
+    build:
+      context: ../fiap-cloud-games-catalog-api
+      dockerfile: Dockerfile
+    image: fiap-cloud-games-catalog-api:local
+    command: ["dotnet", "CatalogAPI.dll", "--migrate"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ConnectionStrings__DefaultConnection: "Server=catalog-sqlserver,1433;Database=FiapCloudGamesCatalog;User Id=sa;Password=Fcg@123456;TrustServerCertificate=True;Encrypt=False"
+      RabbitMq__Host: "rabbitmq"
+      RabbitMq__Port: "5672"
+      RabbitMq__VirtualHost: "/"
+      RabbitMq__Username: "guest"
+      RabbitMq__Password: "guest"
+      Jwt__Issuer: "FiapCloudGames"
+      Jwt__Audience: "FiapCloudGames"
+      Jwt__Secret: "fiap-cloud-games-local-development-secret-key"
+      Jwt__ExpirationMinutes: "60"
+    depends_on:
+      catalog-sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - fcg-network
+
+  users-api:
+    build:
+      context: ../fiap-cloud-games-users-api
+      dockerfile: Dockerfile
+    image: fiap-cloud-games-users-api:local
+    ports:
+      - "5001:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:8080"
+      Api__UseDeveloperExceptionPage: "false"
+      ConnectionStrings__DefaultConnection: "Server=users-sqlserver,1433;Database=FiapCloudGamesUsers;User Id=sa;Password=Fcg@123456;TrustServerCertificate=True;Encrypt=False"
+      RabbitMq__Host: "rabbitmq"
+      RabbitMq__Port: "5672"
+      RabbitMq__VirtualHost: "/"
+      RabbitMq__Username: "guest"
+      RabbitMq__Password: "guest"
+      Jwt__Issuer: "FiapCloudGames"
+      Jwt__Audience: "FiapCloudGames"
+      Jwt__Secret: "fiap-cloud-games-local-development-secret-key"
+      Jwt__ExpirationMinutes: "60"
+    depends_on:
+      users-api-migrator:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - fcg-network
+
+  catalog-api:
+    build:
+      context: ../fiap-cloud-games-catalog-api
+      dockerfile: Dockerfile
+    image: fiap-cloud-games-catalog-api:local
+    ports:
+      - "5003:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:8080"
+      Api__UseDeveloperExceptionPage: "false"
+      ConnectionStrings__DefaultConnection: "Server=catalog-sqlserver,1433;Database=FiapCloudGamesCatalog;User Id=sa;Password=Fcg@123456;TrustServerCertificate=True;Encrypt=False"
+      RabbitMq__Host: "rabbitmq"
+      RabbitMq__Port: "5672"
+      RabbitMq__VirtualHost: "/"
+      RabbitMq__Username: "guest"
+      RabbitMq__Password: "guest"
+      Jwt__Issuer: "FiapCloudGames"
+      Jwt__Audience: "FiapCloudGames"
+      Jwt__Secret: "fiap-cloud-games-local-development-secret-key"
+      Jwt__ExpirationMinutes: "60"
+    depends_on:
+      catalog-api-migrator:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - fcg-network
+
+  payments-api:
+    build:
+      context: ../fiap-cloud-games-payments-api
+      dockerfile: Dockerfile
+    image: fiap-cloud-games-payments-api:local
+    ports:
+      - "5004:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:8080"
+      RabbitMq__Host: "rabbitmq"
+      RabbitMq__Port: "5672"
+      RabbitMq__VirtualHost: "/"
+      RabbitMq__Username: "guest"
+      RabbitMq__Password: "guest"
+      PaymentSimulation__DefaultStatus: "Approved"
+    depends_on:
       rabbitmq:
         condition: service_healthy
     networks:
@@ -62,6 +192,7 @@
     build:
       context: ../fiap-cloud-games-notifications-api
       dockerfile: Dockerfile
+    image: fiap-cloud-games-notifications-api:local
     ports:
       - "5002:8080"
     environment:
@@ -80,8 +211,8 @@
 
 volumes:
   users-sqlserver-data:
+  catalog-sqlserver-data:
 
 networks:
   fcg-network:
     driver: bridge
-
