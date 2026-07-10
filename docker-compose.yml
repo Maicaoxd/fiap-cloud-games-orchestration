@@ -45,7 +45,6 @@
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_URLS: "http://+:8080"
       ConnectionStrings__DefaultConnection: "Server=users-sqlserver,1433;Database=FiapCloudGamesUsers;User Id=sa;Password=Fcg@123456;TrustServerCertificate=True;Encrypt=False"
-      Database__ApplyMigrationsOnStartup: "true"
       RabbitMq__Host: "rabbitmq"
       RabbitMq__Port: "5672"
       RabbitMq__VirtualHost: "/"

@@ -90,15 +90,17 @@ docker compose logs -f notifications-api
 
 ## Banco e migrations
 
-No Docker Compose, a UsersAPI recebe:
+No Kubernetes, as migrations da UsersAPI sao executadas por um `Job` no repositorio da UsersAPI.
 
-```text
-Database__ApplyMigrationsOnStartup=true
+O Job usa a mesma imagem da UsersAPI e executa:
+
+```powershell
+dotnet UsersAPI.dll --migrate
 ```
 
-Isso faz a UsersAPI aplicar as migrations automaticamente ao iniciar no ambiente local Docker.
+Depois que o Job termina com sucesso, o Deployment da UsersAPI pode subir usando o banco ja migrado.
 
-No `appsettings.json` da UsersAPI, essa opcao fica `false` por padrao. Assim evitamos que a aplicacao aplique migration automaticamente fora do ambiente controlado de desenvolvimento.
+No Docker Compose, este repositorio nao aplica migrations automaticamente. Se o volume do SQL Server estiver vazio, aplique a migration pelo fluxo local da UsersAPI antes de testar endpoints que dependem das tabelas.
 
 ## Health checks
 
@@ -208,7 +210,7 @@ docker compose logs rabbitmq
 
 ### Banco sem tabelas
 
-Confira os logs da UsersAPI. Ela deve registrar a aplicacao das migrations no startup quando `Database__ApplyMigrationsOnStartup=true`.
+No Kubernetes, confira os logs do Job de migration. No Docker Compose, confirme se as migrations foram aplicadas pelo fluxo local da UsersAPI antes de testar endpoints que usam o banco.
 
 ```powershell
 docker compose logs users-api
@@ -223,4 +225,6 @@ http://localhost:15672
 ```
 
 Quando o consumer funciona, a mensagem pode nao ficar parada na fila. Ela entra, e logo depois sai com ACK.
+
+
 
