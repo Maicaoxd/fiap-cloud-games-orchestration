@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: notifications-api
-          image: maicaoxd/fiap-cloud-games-notifications-api:0.1.0
+          image: maicaoxd/fiap-cloud-games-notifications-api:0.1.1
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: users-api
-          image: maicaoxd/fiap-cloud-games-users-api:0.1.1
+          image: maicaoxd/fiap-cloud-games-users-api:0.1.2
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

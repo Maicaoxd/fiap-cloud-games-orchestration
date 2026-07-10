@@ -189,10 +189,10 @@ kubectl port-forward svc/rabbitmq 15672:15672 -n fiap-cloud-games
 Os manifests Kubernetes usam imagens do Docker Hub:
 
 ```text
-maicaoxd/fiap-cloud-games-users-api:0.1.1
+maicaoxd/fiap-cloud-games-users-api:0.1.2
 maicaoxd/fiap-cloud-games-catalog-api:0.1.0
 maicaoxd/fiap-cloud-games-payments-api:0.1.0
-maicaoxd/fiap-cloud-games-notifications-api:0.1.0
+maicaoxd/fiap-cloud-games-notifications-api:0.1.1
 ```
 
 Sempre que alterar codigo de uma API usada pelo Kubernetes, gere uma nova tag, faca push e atualize o manifesto correspondente.

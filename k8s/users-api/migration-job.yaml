@@ -18,7 +18,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: users-api-migration
-          image: maicaoxd/fiap-cloud-games-users-api:0.1.1
+          image: maicaoxd/fiap-cloud-games-users-api:0.1.2
           imagePullPolicy: IfNotPresent
           command: ["dotnet", "UsersAPI.dll", "--migrate"]
           envFrom:
