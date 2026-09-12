@@ -184,8 +184,8 @@ services:
       context: ../fiap-cloud-games-users-api
       dockerfile: Dockerfile
     image: fiap-cloud-games-users-api:local
-    ports:
-      - "5001:8080"
+    expose:
+      - "8080"
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_URLS: "http://+:8080"
@@ -213,8 +213,8 @@ services:
       context: ../fiap-cloud-games-catalog-api
       dockerfile: Dockerfile
     image: fiap-cloud-games-catalog-api:local
-    ports:
-      - "5003:8080"
+    expose:
+      - "8080"
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_URLS: "http://+:8080"
