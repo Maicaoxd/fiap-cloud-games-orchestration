@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kong-migrations
+  namespace: fiap-cloud-games
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      initContainers:
+        - name: wait-postgres
+          image: postgres:16-alpine
+          command: [sh, -ec, "until pg_isready -h kong-database -U kong -d kong; do sleep 2; done"]
+      containers:
+        - name: migrations
+          image: kong:3.9.3
+          command: [sh, -ec, "kong migrations bootstrap || (kong migrations up && kong migrations finish)"]
+          envFrom:
+            - configMapRef:
+                name: kong-config
+            - secretRef:
+                name: kong-secret

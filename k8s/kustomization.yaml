@@ -2,6 +2,14 @@
 kind: Kustomization
 resources:
   - namespace.yaml
+  - ../kong
+  - kong/secret.yaml
+  - kong/configmap.yaml
+  - kong/database.yaml
+  - kong/migrations-job.yaml
+  - kong/deployment.yaml
+  - kong/services.yaml
+  - kong/configure-job.yaml
   - rabbitmq/secret.yaml
   - rabbitmq/deployment.yaml
   - rabbitmq/service.yaml

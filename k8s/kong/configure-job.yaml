@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kong-configure
+  namespace: fiap-cloud-games
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      containers:
+        - name: configure
+          image: mcr.microsoft.com/powershell:7.4-ubuntu-22.04
+          command: [pwsh, -NoLogo, -NoProfile, -File, /scripts/configure-kong.ps1, -AdminUrl, "http://kong-admin:8001", -UpstreamPort, "80", -WaitTimeoutSeconds, "300"]
+          env:
+            - name: FCG_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: users-api-secret
+                  key: Jwt__Secret
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: scripts
+          configMap:
+            name: kong-scripts

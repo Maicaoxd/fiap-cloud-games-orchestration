@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kong-postgres-data
+  namespace: fiap-cloud-games
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kong-database
+  namespace: fiap-cloud-games
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: kong-database
+  template:
+    metadata:
+      labels:
+        app: kong-database
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: kong
+            - name: POSTGRES_USER
+              value: kong
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kong-secret
+                  key: KONG_PG_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: [pg_isready, -U, kong, -d, kong]
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: [pg_isready, -U, kong, -d, kong]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: kong-postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kong-database
+  namespace: fiap-cloud-games
+spec:
+  type: ClusterIP
+  selector:
+    app: kong-database
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
