@@ -16,6 +16,33 @@ spec:
         job: users-api-migration
     spec:
       restartPolicy: Never
+      initContainers:
+        - name: wait-sqlserver
+          image: mcr.microsoft.com/mssql/server:2022-latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: SQLCMDPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: users-sqlserver-secret
+                  key: MSSQL_SA_PASSWORD
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              sqlcmd=/opt/mssql-tools18/bin/sqlcmd
+              if [ ! -x "$sqlcmd" ]; then
+                sqlcmd=/opt/mssql-tools/bin/sqlcmd
+              fi
+              if [ ! -x "$sqlcmd" ]; then
+                echo "sqlcmd nao encontrado na imagem." >&2
+                exit 1
+              fi
+              echo "Aguardando SQL Server aceitar consultas..."
+              until "$sqlcmd" -S users-sqlserver,1433 -U sa -d master -C -b -l 3 -t 3 -Q "SELECT 1" >/dev/null 2>&1; do
+                sleep 2
+              done
+              echo "SQL Server disponivel; iniciando migrations."
       containers:
         - name: users-api-migration
           image: maicaoxd/fiap-cloud-games-users-api:0.1.2

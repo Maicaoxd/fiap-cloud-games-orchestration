@@ -168,6 +168,8 @@ CatalogAPI publica OrderPlacedEvent
 
 Os manifests ficam em `k8s/` e usam `Kustomization` para consolidar infraestrutura e aplicacoes.
 
+Os Jobs de migrations de UsersAPI e CatalogAPI possuem um `initContainer` que aguarda uma consulta `SELECT 1` autenticada no SQL Server antes de iniciar o migrator. A senha vem do Secret do respectivo banco. O limite total de cada Job continua em 300 segundos, incluindo essa espera.
+
 Aplicar:
 
 ```powershell
