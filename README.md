@@ -9,7 +9,7 @@ Ambiente local da plataforma FIAP Cloud Games, com Docker Compose e manifestos K
 - MongoDB para detalhes opcionais dos jogos e Redis para cache de consultas individuais.
 - RabbitMQ para eventos entre os serviços.
 - PaymentsAPI para simulação de pagamentos.
-- Notifications Function e Azurite no Docker; NotificationsAPI no Kubernetes.
+- Notifications Function e Azurite no Docker e Kubernetes; NotificationsAPI opcional como alternativa legada.
 - Prometheus e Grafana para métricas das APIs.
 
 A entrada HTTP de UsersAPI e CatalogAPI passa pelo Kong. Os prefixos públicos são /identity e /catalog; internamente as APIs recebem /api. As três operações públicas são cadastro, login e recuperação de senha. As demais exigem JWT; autorização por perfil também é validada pelas APIs.
@@ -135,7 +135,7 @@ As migrations criam o administrador admin@email.com, CPF 52998224725, nascimento
 
 ## Notificações e filas
 
-O Docker executa notifications-function por padrão. Cada fila de notificação deve ter um único consumidor:
+Docker e Kubernetes executam notifications-function por padrão. Cada fila de notificação deve ter um único consumidor:
 
 - notifications-user-created-event
 - notifications-payment-processed-event
@@ -201,13 +201,13 @@ kubectl apply -k .\k8s
 kubectl get pods,jobs,services,pvc -n fiap-cloud-games
 ```
 
-As imagens referenciadas pelos manifestos são:
+As imagens de aplicação da base padrão são:
 
 ```text
 maicaoxd/fiap-cloud-games-users-api:0.2.1
 maicaoxd/fiap-cloud-games-catalog-api:0.4.1
 maicaoxd/fiap-cloud-games-payments-api:0.1.1
-maicaoxd/fiap-cloud-games-notifications-api:0.1.2
+maicaoxd/fiap-cloud-games-notifications-function:0.1.0
 ```
 
 Disponibilize essas imagens no registry ou no runtime dos nós. Alterações de código exigem build, publicação e atualização da tag nos Deployments e Jobs correspondentes.
@@ -216,6 +216,8 @@ Disponibilize essas imagens no registry ou no runtime dos nós. Alterações de 
 kubectl wait --for=condition=complete job/users-api-migration job/catalog-api-migration job/kong-migrations job/kong-configure -n fiap-cloud-games --timeout=600s
 kubectl rollout status deployment/kong -n fiap-cloud-games --timeout=300s
 kubectl rollout status deployment/catalog-api -n fiap-cloud-games --timeout=300s
+kubectl rollout status deployment/azurite -n fiap-cloud-games --timeout=300s
+kubectl rollout status deployment/notifications-function -n fiap-cloud-games --timeout=600s
 ```
 
 Jobs concluídos não são executados novamente por kubectl apply. Ao atualizar o template de um Job, confirme sua conclusão e recrie somente o Job correspondente; não remova os bancos ou PVCs.
@@ -236,7 +238,42 @@ kubectl port-forward svc/prometheus 9091:9090 --address 127.0.0.1 -n fiap-cloud-
 kubectl port-forward svc/grafana 3001:3000 --address 127.0.0.1 -n fiap-cloud-games
 ```
 
-Abra http://localhost:9091/targets e http://localhost:3001/d/fcg-apis. Services administrativos e bancos permanecem internos; volumes Docker e PVCs Kubernetes não compartilham dados. O Kubernetes executa NotificationsAPI, sem Function ou Azurite.
+Abra http://localhost:9091/targets e http://localhost:3001/d/fcg-apis. Services administrativos e bancos permanecem internos; volumes Docker e PVCs Kubernetes não compartilham dados.
+
+### Function e Azurite
+
+Os manifestos em k8s/notifications-function e k8s/azurite executam a imagem publicada da Function e o emulador local. Azurite possui PVC de 1 GiB e Services internos nas portas 10000, 10001 e 10002. A Function possui Service interno na porta 80, somente operacional; não há rota de negócio HTTP no Kong para ela.
+
+Antes de iniciar a Function, os initContainers aguardam o Azurite e executam o configurador PowerShell do RabbitMQ. O Kustomize gera o ConfigMap diretamente de rabbitmq/configure-rabbitmq.ps1 e definitions.json no repositório da Function. Alterações nesses arquivos mudam o hash do ConfigMap e provocam uma nova inicialização do Pod.
+
+As conexões vêm de notifications-function-secret; a conta fictícia do emulador fica em azurite-secret. Mantenha a conta/chave do Storage iguais nos dois Secrets e a conexão AMQP alinhada a rabbitmq-secret. Escape caracteres especiais dos componentes da URI AMQP. Os valores versionados são somente acadêmicos locais; não configure endpoints Azure ou Application Insights para essa execução.
+
+Acompanhe o configurador e as duas notificações:
+
+```powershell
+kubectl logs deployment/notifications-function -c configure-rabbitmq -n fiap-cloud-games
+kubectl logs deployment/notifications-function -c notifications-function -n fiap-cloud-games --follow
+```
+
+Pelo proxy encaminhado em localhost:8005, cadastre um usuário e execute uma compra com JWT. Confira boas-vindas, confirmação de compra e a biblioteca atualizada. Mantenha uma única réplica para esse exemplo e não execute NotificationsAPI nas mesmas filas.
+
+### Alternativa legada de notificações
+
+Ao migrar um cluster que já executa NotificationsAPI, pare seu Deployment antes de aplicar a base com a Function:
+
+```powershell
+kubectl scale deployment/notifications-api --replicas=0 -n fiap-cloud-games
+kubectl apply -k .\k8s
+```
+
+Em um cluster novo, aplique diretamente a base: NotificationsAPI não faz parte dela. Para usar a implementação legada, pare a Function e aplique somente os manifestos opcionais:
+
+```powershell
+kubectl scale deployment/notifications-function --replicas=0 -n fiap-cloud-games
+kubectl apply -k .\k8s\notifications-api
+```
+
+Para retornar, reduza NotificationsAPI a zero e reaplique a base padrão. Não remova filas, Secrets ou PVCs para trocar o consumidor.
 
 ## Guias de configuração
 

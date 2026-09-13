@@ -1,0 +1,106 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: azurite-secret
+  namespace: fiap-cloud-games
+type: Opaque
+stringData:
+  # Conta fictícia exclusiva do emulador local; não representa uma conta Azure.
+  AZURITE_ACCOUNTS: "fcglocal:ZmlhcC1jbG91ZC1nYW1lcy1sb2NhbC1zdG9yYWdlLWtleQ=="
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: azurite-data
+  namespace: fiap-cloud-games
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: azurite
+  namespace: fiap-cloud-games
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: azurite
+  template:
+    metadata:
+      labels:
+        app: azurite
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: azurite
+          image: mcr.microsoft.com/azure-storage/azurite:3.35.0
+          imagePullPolicy: IfNotPresent
+          command: [azurite]
+          args: [--location, /data, --blobHost, 0.0.0.0, --queueHost, 0.0.0.0, --tableHost, 0.0.0.0, --disableProductStyleUrl]
+          envFrom:
+            - secretRef:
+                name: azurite-secret
+          ports:
+            - name: blob
+              containerPort: 10000
+            - name: queue
+              containerPort: 10001
+            - name: table
+              containerPort: 10002
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          startupProbe:
+            tcpSocket:
+              port: blob
+            failureThreshold: 60
+            periodSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - node
+                - -e
+                - "const net=require('net');Promise.all([10000,10001,10002].map(p=>new Promise((resolve,reject)=>{const s=net.connect(p,'127.0.0.1',()=>{s.end();resolve()});s.on('error',reject);s.setTimeout(1500,()=>{s.destroy();reject()})}))).then(()=>process.exit(0),()=>process.exit(1));setTimeout(()=>process.exit(1),2000)"
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            tcpSocket:
+              port: blob
+            periodSeconds: 20
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: azurite-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: azurite
+  namespace: fiap-cloud-games
+spec:
+  type: ClusterIP
+  selector:
+    app: azurite
+  ports:
+    - name: blob
+      port: 10000
+      targetPort: blob
+    - name: queue
+      port: 10001
+      targetPort: queue
+    - name: table
+      port: 10002
+      targetPort: table
