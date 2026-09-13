@@ -158,6 +158,38 @@ docker compose up -d notifications-function
 
 Não habilite o perfil legado sem indicar o serviço: isso também inicia a Function padrão e faz os consumidores disputarem mensagens. Não execute outro host da Function no mesmo broker.
 
+## Construir e publicar imagens
+
+Na raiz da orquestração, após autenticar no Docker Hub:
+
+```powershell
+docker login
+docker build --platform linux/amd64 -t maicaoxd/fiap-cloud-games-users-api:0.2.1 ../fiap-cloud-games-users-api
+docker build --platform linux/amd64 -t maicaoxd/fiap-cloud-games-catalog-api:0.4.1 ../fiap-cloud-games-catalog-api
+docker build --platform linux/amd64 -t maicaoxd/fiap-cloud-games-payments-api:0.1.1 ../fiap-cloud-games-payments-api
+docker build --platform linux/amd64 -t maicaoxd/fiap-cloud-games-notifications-api:0.1.2 ../fiap-cloud-games-notifications-api
+docker build --platform linux/amd64 -t maicaoxd/fiap-cloud-games-notifications-function:0.1.0 ../fiap-cloud-games-notifications-function
+```
+
+Publique as tags construídas:
+
+```powershell
+docker push maicaoxd/fiap-cloud-games-users-api:0.2.1
+docker push maicaoxd/fiap-cloud-games-catalog-api:0.4.1
+docker push maicaoxd/fiap-cloud-games-payments-api:0.1.1
+docker push maicaoxd/fiap-cloud-games-notifications-api:0.1.2
+docker push maicaoxd/fiap-cloud-games-notifications-function:0.1.0
+```
+
+Os comandos usam o namespace maicaoxd. Para outra conta, substitua o namespace também no Compose e nos manifestos. Use uma tag nova para cada versão; não sobrescreva releases anteriores. O Compose mantém contextos de build locais e tags versionadas. Para executar imagens já publicadas sem recompilar:
+
+```powershell
+docker compose pull
+docker compose up -d --no-build
+```
+
+Publicar uma imagem não atualiza os Pods em execução. No Kubernetes, aplique os manifestos depois de disponibilizar as tags e observe as instruções de atualização dos Jobs.
+
 ## Kubernetes
 
 Confirme o contexto antes de aplicar:
@@ -172,10 +204,10 @@ kubectl get pods,jobs,services,pvc -n fiap-cloud-games
 As imagens referenciadas pelos manifestos são:
 
 ```text
-maicaoxd/fiap-cloud-games-users-api:0.2.0
-maicaoxd/fiap-cloud-games-catalog-api:0.4.0
-maicaoxd/fiap-cloud-games-payments-api:0.1.0
-maicaoxd/fiap-cloud-games-notifications-api:0.1.1
+maicaoxd/fiap-cloud-games-users-api:0.2.1
+maicaoxd/fiap-cloud-games-catalog-api:0.4.1
+maicaoxd/fiap-cloud-games-payments-api:0.1.1
+maicaoxd/fiap-cloud-games-notifications-api:0.1.2
 ```
 
 Disponibilize essas imagens no registry ou no runtime dos nós. Alterações de código exigem build, publicação e atualização da tag nos Deployments e Jobs correspondentes.

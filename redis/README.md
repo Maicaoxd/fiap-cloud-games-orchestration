@@ -97,8 +97,8 @@ CatalogAPI usa a imagem 0.4.0, Redis__Enabled=true, Redis__Configuration=catalog
 Antes de aplicar a base completa, publique a imagem atual no repositorio CatalogAPI:
 
 ```powershell
-docker build -t maicaoxd/fiap-cloud-games-catalog-api:0.4.0 .
-docker push maicaoxd/fiap-cloud-games-catalog-api:0.4.0
+docker build -t maicaoxd/fiap-cloud-games-catalog-api:0.4.1 .
+docker push maicaoxd/fiap-cloud-games-catalog-api:0.4.1
 ```
 
 Na orquestracao:

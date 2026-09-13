@@ -94,7 +94,7 @@ CatalogAPI: contrato tipado e validação em Application/Games/Details, interfac
 dotnet test tests/CatalogAPI.Tests/CatalogAPI.Tests.csproj
 ```
 
-Execute no repositório CatalogAPI. Os testes cobrem validação, normalização, BSON/UUID, estados de leitura, cancelamento, jogos ausentes/inativos, gravação e proteção administrativa. Os manifestos Kubernetes usam CatalogAPI 0.4.0 e incluem sua infraestrutura/configuração Mongo.
+Execute no repositório CatalogAPI. Os testes cobrem validação, normalização, BSON/UUID, estados de leitura, cancelamento, jogos ausentes/inativos, gravação e proteção administrativa. Os manifestos Kubernetes usam CatalogAPI 0.4.1 e incluem sua infraestrutura/configuração Mongo.
 
 Referências: [UUID no driver .NET](https://www.mongodb.com/docs/drivers/csharp/current/serialization/guids/), [configuração da conexão](https://www.mongodb.com/docs/drivers/csharp/current/connect/connection-options/), [notas da versão 8.0](https://www.mongodb.com/docs/manual/release-notes/8.0).
 
@@ -111,8 +111,8 @@ A senha da API vem diretamente da chave FCG_MONGODB_PASSWORD do Secret catalog-m
 Na raiz da orquestração:
 
 ```powershell
-docker build -t maicaoxd/fiap-cloud-games-catalog-api:0.4.0 ../fiap-cloud-games-catalog-api
-docker push maicaoxd/fiap-cloud-games-catalog-api:0.4.0
+docker build -t maicaoxd/fiap-cloud-games-catalog-api:0.4.1 ../fiap-cloud-games-catalog-api
+docker push maicaoxd/fiap-cloud-games-catalog-api:0.4.1
 ```
 
 UsersAPI permanece em 0.2.0. Mantenha a tag das imagens alinhada aos manifestos. Deployment e Job migrador da CatalogAPI usam a mesma versão 0.4.0; as migrations SQL em si não mudaram.

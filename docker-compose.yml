@@ -33,7 +33,7 @@ services:
     build:
       context: ../fiap-cloud-games-notifications-function
       dockerfile: Dockerfile
-    image: fiap-cloud-games-notifications-function:local
+    image: maicaoxd/fiap-cloud-games-notifications-function:0.1.0
     environment:
       AzureWebJobsStorage: "DefaultEndpointsProtocol=http;AccountName=fcglocal;AccountKey=ZmlhcC1jbG91ZC1nYW1lcy1sb2NhbC1zdG9yYWdlLWtleQ==;BlobEndpoint=http://azurite:10000/fcglocal;QueueEndpoint=http://azurite:10001/fcglocal;TableEndpoint=http://azurite:10002/fcglocal"
       RabbitMQConnection: "amqp://guest:guest@rabbitmq:5672/%2F"
@@ -274,7 +274,7 @@ services:
     build:
       context: ../fiap-cloud-games-users-api
       dockerfile: Dockerfile
-    image: fiap-cloud-games-users-api:local
+    image: maicaoxd/fiap-cloud-games-users-api:0.2.1
     command: ["dotnet", "UsersAPI.dll", "--migrate"]
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
@@ -301,7 +301,7 @@ services:
     build:
       context: ../fiap-cloud-games-catalog-api
       dockerfile: Dockerfile
-    image: fiap-cloud-games-catalog-api:local
+    image: maicaoxd/fiap-cloud-games-catalog-api:0.4.1
     command: ["dotnet", "CatalogAPI.dll", "--migrate"]
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
@@ -328,7 +328,7 @@ services:
     build:
       context: ../fiap-cloud-games-users-api
       dockerfile: Dockerfile
-    image: fiap-cloud-games-users-api:local
+    image: maicaoxd/fiap-cloud-games-users-api:0.2.1
     expose:
       - "8080"
     environment:
@@ -357,7 +357,7 @@ services:
     build:
       context: ../fiap-cloud-games-catalog-api
       dockerfile: Dockerfile
-    image: fiap-cloud-games-catalog-api:local
+    image: maicaoxd/fiap-cloud-games-catalog-api:0.4.1
     expose:
       - "8080"
     environment:
@@ -399,7 +399,7 @@ services:
     build:
       context: ../fiap-cloud-games-payments-api
       dockerfile: Dockerfile
-    image: fiap-cloud-games-payments-api:local
+    image: maicaoxd/fiap-cloud-games-payments-api:0.1.1
     ports:
       - "5004:8080"
     environment:
@@ -422,7 +422,7 @@ services:
     build:
       context: ../fiap-cloud-games-notifications-api
       dockerfile: Dockerfile
-    image: fiap-cloud-games-notifications-api:local
+    image: maicaoxd/fiap-cloud-games-notifications-api:0.1.2
     ports:
       - "5002:8080"
     environment:

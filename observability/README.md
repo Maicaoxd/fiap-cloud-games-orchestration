@@ -136,7 +136,7 @@ O Kustomize gera os ConfigMaps diretamente dos arquivos deste diretorio, incluin
 
 ### Imagens instrumentadas
 
-A base da orquestração referencia UsersAPI 0.2.0 e CatalogAPI 0.4.0. Disponibilize essas imagens no registry ou runtime dos nós antes de aplicar. Alterar uma tag no manifesto não constrói nem publica a imagem.
+A base da orquestração referencia UsersAPI 0.2.1 e CatalogAPI 0.4.1. Disponibilize essas imagens no registry ou runtime dos nós antes de aplicar. Alterar uma tag no manifesto não constrói nem publica a imagem.
 
 ### Aplicar e validar
 
