@@ -1,4 +1,23 @@
 services:
+  catalog-mongodb:
+    image: mongo:8.0.29
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: "${FCG_MONGODB_ROOT_PASSWORD:-fcg-local-mongo-root}"
+      MONGO_INITDB_DATABASE: FiapCloudGamesCatalog
+      FCG_MONGODB_PASSWORD: "${FCG_MONGODB_PASSWORD:-fcg-local-mongo}"
+    volumes:
+      - catalog-mongodb-data:/data/db
+      - ./mongodb/init-catalog.js:/docker-entrypoint-initdb.d/init-catalog.js:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --username root --password \"$$MONGO_INITDB_ROOT_PASSWORD\" --authenticationDatabase admin --eval 'quit(db.adminCommand({ping: 1}).ok ? 0 : 1)'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - fcg-network
+
   prometheus:
     image: prom/prometheus:v3.14.0
     command:
@@ -251,6 +270,12 @@ services:
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_URLS: "http://+:8080"
       Api__UseDeveloperExceptionPage: "false"
+      MongoDb__ConnectionString: "mongodb://catalog-mongodb:27017"
+      MongoDb__Username: "fcg-catalog"
+      MongoDb__Password: "${FCG_MONGODB_PASSWORD:-fcg-local-mongo}"
+      MongoDb__DatabaseName: "FiapCloudGamesCatalog"
+      MongoDb__CollectionName: "game_details"
+      MongoDb__OperationTimeoutSeconds: "2"
       ConnectionStrings__DefaultConnection: "Server=catalog-sqlserver,1433;Database=FiapCloudGamesCatalog;User Id=sa;Password=Fcg@123456;TrustServerCertificate=True;Encrypt=False"
       RabbitMq__Host: "rabbitmq"
       RabbitMq__Port: "5672"
@@ -264,6 +289,8 @@ services:
     depends_on:
       catalog-api-migrator:
         condition: service_completed_successfully
+      catalog-mongodb:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
     networks:
@@ -313,6 +340,7 @@ services:
       - fcg-network
 
 volumes:
+  catalog-mongodb-data:
   prometheus-data:
   grafana-data:
   kong-postgres-data:
