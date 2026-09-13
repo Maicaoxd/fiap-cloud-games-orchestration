@@ -1,0 +1,107 @@
+{
+  "uid": "fcg-logs",
+  "title": "FIAP Cloud Games - Logs",
+  "tags": [
+    "fiap",
+    "fcg",
+    "logs"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "editable": true,
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "label": "Aplicação",
+        "type": "custom",
+        "query": "notifications-function,users-api,catalog-api,payments-api",
+        "multi": true,
+        "includeAll": true,
+        "allValue": "notifications-function|users-api|catalog-api|payments-api",
+        "current": {
+          "selected": true,
+          "text": "notifications-function",
+          "value": "notifications-function"
+        },
+        "options": [
+          {
+            "selected": false,
+            "text": "Todas",
+            "value": "$__all"
+          },
+          {
+            "selected": true,
+            "text": "notifications-function",
+            "value": "notifications-function"
+          },
+          {
+            "selected": false,
+            "text": "users-api",
+            "value": "users-api"
+          },
+          {
+            "selected": false,
+            "text": "catalog-api",
+            "value": "catalog-api"
+          },
+          {
+            "selected": false,
+            "text": "payments-api",
+            "value": "payments-api"
+          }
+        ]
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Logs das aplicações",
+      "description": "Logs centralizados do Docker. Selecione a aplicação e o intervalo de tempo. Abra os detalhes de uma linha para consultar seus rótulos. Para buscar um usuário ou pedido, use a fonte loki no Explore.",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "fcg-loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "fcg-loki"
+          },
+          "editorMode": "code",
+          "expr": "{service=~\"${service:regex}\"}",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    }
+  ]
+}

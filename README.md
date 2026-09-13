@@ -11,6 +11,7 @@ Ambiente local da plataforma FIAP Cloud Games, com Docker Compose e manifestos K
 - PaymentsAPI para simulação de pagamentos.
 - Notifications Function e Azurite no Docker e Kubernetes; NotificationsAPI opcional como alternativa legada.
 - Prometheus e Grafana para métricas das APIs.
+- Loki e Alloy para logs centralizados das aplicações no Docker, consultados pelo Grafana.
 
 A entrada HTTP de UsersAPI e CatalogAPI passa pelo Kong. Os prefixos públicos são /identity e /catalog; internamente as APIs recebem /api. As três operações públicas são cadastro, login e recuperação de senha. As demais exigem JWT; autorização por perfil também é validada pelas APIs.
 
@@ -158,6 +159,26 @@ docker compose up -d notifications-function
 
 Não habilite o perfil legado sem indicar o serviço: isso também inicia a Function padrão e faz os consumidores disputarem mensagens. Não execute outro host da Function no mesmo broker.
 
+## Consultar logs no Grafana
+
+No Docker, Alloy coleta os logs de notifications-function, users-api, catalog-api e payments-api e envia ao Loki. O dashboard está em http://localhost:3000/d/fcg-logs, na pasta FIAP Cloud Games. Selecione a aplicação e o intervalo de tempo; a seleção inicial é a Function.
+
+Para pesquisar uma notificação, abra Explore, selecione a fonte loki e use:
+
+```logql
+{service="notifications-function"} |= "E-mail de boas-vindas enviado"
+```
+
+Para localizar uma compra, substitua ORDER_ID pelo identificador retornado na requisição:
+
+```logql
+{service="notifications-function"} |= "ORDER_ID"
+```
+
+Loki armazena os logs em volume com retenção configurada de 72 horas. Alloy persiste os pontos de leitura em outro volume. Ambos ficam internos; o proxy de logs permite somente leitura de seções específicas da API Docker e não publica portas. Esse acesso ainda permite consultar metadados de containers, portanto não conecte outros serviços à rede docker-logs-network.
+
+Os logs podem conter dados pessoais: use dados sintéticos nas demonstrações e não registre senhas ou tokens. O ambiente local não usa Grafana Cloud ou recursos Azure. A base Kubernetes mantém a coleta de métricas; estes componentes de logs pertencem ao Compose.
+
 ## Construir e publicar imagens
 
 Na raiz da orquestração, após autenticar no Docker Hub:
@@ -278,7 +299,7 @@ Para retornar, reduza NotificationsAPI a zero e reaplique a base padrão. Não r
 ## Guias de configuração
 
 - [Kong: Services, Routes, JWT e interface administrativa](kong/README.md)
-- [Prometheus e Grafana: coleta, consultas e dashboard](observability/README.md)
+- [Observabilidade: métricas, logs, consultas e dashboards](observability/README.md)
 - [MongoDB: contrato, configuração e consulta dos detalhes](mongodb/README.md)
 - [Redis: cache, inspeção e invalidação](redis/README.md)
 

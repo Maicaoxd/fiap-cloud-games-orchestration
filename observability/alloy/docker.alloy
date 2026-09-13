@@ -1,0 +1,54 @@
+logging {
+  level = "warn"
+}
+
+// Descobre apenas containers deste projeto Compose.
+discovery.docker "fcg" {
+  host = "http://docker-logs-proxy:2375"
+  refresh_interval = "5s"
+
+  filter {
+    name = "label"
+    values = ["com.docker.compose.project=" + sys.env("FCG_COMPOSE_PROJECT")]
+  }
+}
+
+discovery.relabel "applications" {
+  targets = discovery.docker.fcg.targets
+
+  // Bancos, inicializadores e outros projetos não fazem parte da coleta.
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    regex = "notifications-function|users-api|catalog-api|payments-api"
+    action = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label = "service"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label = "compose_project"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex = "/(.*)"
+    target_label = "container"
+  }
+}
+
+// Mantém os horários originais dos logs e persiste os pontos de leitura.
+loki.source.docker "applications" {
+  host = "http://docker-logs-proxy:2375"
+  targets = discovery.relabel.applications.output
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

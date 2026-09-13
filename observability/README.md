@@ -15,6 +15,7 @@ Na raiz da orquestracao:
 ```powershell
 docker compose up -d --build users-api catalog-api prometheus
 docker compose up -d grafana
+docker compose up -d loki docker-logs-proxy alloy
 ```
 
 Prometheus: `http://localhost:9090`. Grafana: `http://localhost:3000`. Ambas as portas sao publicadas somente em 127.0.0.1.
@@ -124,7 +125,61 @@ Abra `http://localhost:9090/targets`: ambos os targets devem estar UP. No Grafan
 
 Os graficos mostram somente series existentes. Gere trafego que alcance as APIs; `rate` requer ao menos duas amostras do contador. Nao e necessario simular erro 5xx em producao nem alterar dados para verificar o dashboard. Disponibilidade UP significa coleta funcionando, nao que todas as dependencias do dominio estejam saudaveis.
 
-O ambiente coleta métricas HTTP e de processo de UsersAPI e CatalogAPI. Não inclui alertas, logs centralizados, tracing ou monitoração do Kong. Preserve os volumes ao parar o ambiente.
+O ambiente coleta métricas HTTP e de processo de UsersAPI e CatalogAPI. No Docker, também centraliza logs das aplicações com Loki e Alloy. Não inclui alertas, tracing ou monitoração do Kong. Preserve os volumes ao parar o ambiente.
+
+## Logs centralizados no Docker
+
+Loki 3.7.7 armazena os logs em uma instância local, usando TSDB, schema v13 e volume loki-data. O Compactor aplica a retenção de 72 horas; a exclusão física acontece posteriormente, conforme o ciclo de compactação e o atraso de duas horas. A retenção não é um limite de espaço em disco.
+
+Alloy 1.19.2 descobre os containers deste projeto Compose e lê os logs de notifications-function, users-api, catalog-api e payments-api. Bancos, migradores, Kong, implementação legada e outros projetos não são coletados. Os rótulos service, compose_project e container identificam a origem; usuários, e-mails e pedidos permanecem no conteúdo, não viram rótulos. Os pontos de leitura são persistidos em alloy-data.
+
+docker-logs-proxy usa tecnativa/docker-socket-proxy v0.5.0 e fornece somente GET/HEAD nas seções containers, networks, events, ping e version da API Docker. A leitura de networks é necessária para descobrir os containers. Escritas e outras seções ficam bloqueadas. Apenas Alloy compartilha sua rede interna; o coletor não monta diretamente o socket. A permissão containers ainda expõe metadados, incluindo variáveis de ambiente, por isso mantenha o proxy sem portas publicadas e não adicione outros serviços à rede docker-logs-network. Montar o socket somente para leitura não seria suficiente para bloquear operações de escrita na API.
+
+Loki e Alloy também não publicam portas no host. A fonte loki é provisionada no Grafana com UID fcg-loki e URL interna http://loki:3100. A autenticação do Loki está desativada apenas para esse ambiente local isolado; uma instalação publicada exige controle de acesso. Os logs podem conter dados pessoais: use dados sintéticos nas demonstrações e não registre senhas ou tokens.
+
+### Visualizar e pesquisar
+
+Abra http://localhost:3000/d/fcg-logs. O dashboard FIAP Cloud Games - Logs fica na mesma pasta do dashboard de métricas e permite selecionar a aplicação. A seleção inicial é notifications-function; ajuste o intervalo de tempo para incluir a execução desejada.
+
+Em Explore, selecione a fonte loki, use o editor Code e execute:
+
+```logql
+{service="notifications-function"}
+```
+
+Para filtrar as boas-vindas:
+
+```logql
+{service="notifications-function"} |= "E-mail de boas-vindas enviado"
+```
+
+Para consultar uma compra, substitua ORDER_ID pelo identificador retornado no HTTP 202:
+
+```logql
+{service="notifications-function"} |= "ORDER_ID"
+```
+
+Faça cadastro, login e compra pelo Kong e confira a notificação e a biblioteca atualizada. Os e-mails são simulados. Mensagens rejeitadas antes de chegar à Function não geram uma notificação.
+
+### Configurar e solucionar problemas
+
+- loki/docker.yml: armazenamento, WAL e retenção; reinicie loki após editar.
+- alloy/docker.alloy: descoberta, filtro de aplicações, rótulos e envio; reinicie alloy após editar.
+- grafana/provisioning/datasources/loki.yml: fonte Loki; reinicie grafana após editar.
+- grafana/dashboards/fcg-logs.json: visualização; o provider existente verifica mudanças a cada 30 segundos.
+
+Para reproduzir pela interface, adicione uma fonte Loki com URL http://loki:3100 e confirme com Save & test. Crie um painel do tipo Logs, selecione essa fonte e use a consulta {service="notifications-function"}.
+
+```powershell
+docker compose config --quiet
+docker compose up -d loki docker-logs-proxy alloy grafana
+docker compose ps
+docker compose logs --tail=100 loki alloy docker-logs-proxy
+```
+
+Sem logs: confira se a aplicação está em execução, o intervalo selecionado e os logs de Alloy. A variável FCG_COMPOSE_PROJECT é preenchida com COMPOSE_PROJECT_NAME pelo Compose, inclusive para projetos com nome personalizado. Somente containers em execução são descobertos; mantenha o coletor ativo durante os testes. Logs já enviados permanecem no Loki após recriar um container de aplicação, até a retenção removê-los.
+
+Se o Loki rejeitar entradas antigas, gere um evento novo; a configuração rejeita logs anteriores a 72 horas. Não use docker compose down -v para solucionar problemas: isso apaga os volumes. Loki e Alloy desta seção são exclusivos do Compose, sem conexão com serviços de nuvem.
 
 ## Kubernetes
 
