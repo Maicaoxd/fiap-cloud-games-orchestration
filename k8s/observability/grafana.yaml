@@ -69,16 +69,20 @@ spec:
               mountPath: /var/lib/grafana/dashboards
               readOnly: true
           startupProbe:
+            timeoutSeconds: 5
             httpGet:
               path: /api/health
               port: http
             periodSeconds: 5
             failureThreshold: 60
           readinessProbe:
+            timeoutSeconds: 5
             httpGet:
               path: /api/health
               port: http
           livenessProbe:
+            timeoutSeconds: 5
+            failureThreshold: 6
             httpGet:
               path: /api/health
               port: http

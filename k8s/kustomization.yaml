@@ -2,9 +2,7 @@
 kind: Kustomization
 resources:
   - namespace.yaml
-  - ../../fiap-cloud-games-notifications-function/rabbitmq
-  - azurite/resources.yaml
-  - notifications-function/resources.yaml
+  - ../../fiap-cloud-games-notifications-function/k8s
   - observability
   - ../kong
   - kong/secret.yaml

@@ -1,0 +1,34 @@
+FIAP CLOUD GAMES — TECH CHALLENGE FASE 3
+
+Nome do grupo: [PREENCHER]
+Integrantes e usuários no Discord: [PREENCHER]
+
+Repositório central e instruções de execução:
+https://github.com/Maicaoxd/fiap-cloud-games-orchestration
+
+Código-fonte das APIs:
+https://github.com/Maicaoxd/fiap-cloud-games-users-api
+https://github.com/Maicaoxd/fiap-cloud-games-catalog-api
+https://github.com/Maicaoxd/fiap-cloud-games-payments-api
+
+Function e infraestrutura como código:
+https://github.com/Maicaoxd/fiap-cloud-games-notifications-function
+
+Implementação legada de notificação, apenas para referência:
+https://github.com/Maicaoxd/fiap-cloud-games-notifications-api
+
+Arquitetura:
+https://github.com/Maicaoxd/fiap-cloud-games-orchestration/blob/master/docs/arquitetura.md
+
+Evidências de validação:
+https://github.com/Maicaoxd/fiap-cloud-games-orchestration/blob/master/docs/validacao-fase-3.md
+
+Observabilidade escolhida: Opção A — Prometheus e Grafana.
+Logs centralizados: Loki e Alloy, consultados no Grafana.
+Execução da Function: runtime oficial Azure Functions local, sem recursos Azure.
+
+Vídeo de demonstração (duração máxima de 20 minutos): [PREENCHER URL]
+Data da entrega: [PREENCHER]
+
+Antes de entregar, substitua os campos indicados, confirme a branch dos links,
+publique os commits e confira o acesso aos repositórios e ao vídeo.

@@ -1,4 +1,4 @@
-# Kong Gateway OSS no Docker
+# Kong Gateway OSS — Docker e Kubernetes
 
 Kong `3.9.3` em modo tradicional, com PostgreSQL `16-alpine` exclusivo e volume persistente. A configuracao e aplicada pela Admin API; nao utiliza DB-less.
 

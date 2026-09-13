@@ -92,7 +92,7 @@ Os testes cobrem TTL/JSON, leitura do cache sem bancos, ausência de cache, cach
 
 Os manifestos em k8s/catalog-redis incluem Deployment, Secret academico e Service ClusterIP. Mesma imagem redis:8.2.9-alpine, autenticacao, maxmemory 128mb, allkeys-lru e nenhum PVC/RDB/AOF. Probes executam PING autenticado. Recursos: requests 50m/64Mi, limits 500m/256Mi.
 
-CatalogAPI usa a imagem 0.4.0, Redis__Enabled=true, Redis__Configuration=catalog-redis:6379 e Redis__Password referenciado do Secret compartilhado com Redis. O Job real de migrations usa a mesma imagem, mas desabilita o cache. A readiness da API nao exige Redis: uma queda de cache nao deve retirar uma API saudavel de servico.
+CatalogAPI usa a imagem 0.4.1, Redis__Enabled=true, Redis__Configuration=catalog-redis:6379 e Redis__Password referenciado do Secret compartilhado com Redis. O Job real de migrations usa a mesma imagem, mas desabilita o cache. A readiness da API nao exige Redis: uma queda de cache nao deve retirar uma API saudavel de servico.
 
 Antes de aplicar a base completa, publique a imagem atual no repositorio CatalogAPI:
 

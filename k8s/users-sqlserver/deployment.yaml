@@ -7,6 +7,8 @@ metadata:
     app: users-sqlserver
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: users-sqlserver
@@ -21,6 +23,16 @@ spec:
         - name: users-sqlserver
           image: mcr.microsoft.com/mssql/server:2022-latest
           imagePullPolicy: IfNotPresent
+          env:
+            - name: MSSQL_MEMORY_LIMIT_MB
+              value: "2048"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 3Gi
           ports:
             - name: sqlserver
               containerPort: 1433

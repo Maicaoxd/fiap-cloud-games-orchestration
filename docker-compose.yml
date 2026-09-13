@@ -287,19 +287,22 @@ services:
       RABBITMQ_DEFAULT_USER: "guest"
       RABBITMQ_DEFAULT_PASS: "guest"
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      test: ["CMD", "gosu", "rabbitmq", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 30s
     networks:
       - fcg-network
 
   users-sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
+    mem_limit: 3g
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "Fcg@123456"
       MSSQL_PID: "Developer"
+      MSSQL_MEMORY_LIMIT_MB: "2048"
     ports:
       - "1433:1433"
     volumes:
@@ -315,10 +318,12 @@ services:
 
   catalog-sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
+    mem_limit: 3g
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "Fcg@123456"
       MSSQL_PID: "Developer"
+      MSSQL_MEMORY_LIMIT_MB: "2048"
     ports:
       - "1434:1433"
     volumes:

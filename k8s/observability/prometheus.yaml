@@ -49,16 +49,20 @@ spec:
             - name: data
               mountPath: /prometheus
           startupProbe:
+            timeoutSeconds: 5
             httpGet:
               path: /-/ready
               port: http
             periodSeconds: 5
             failureThreshold: 60
           readinessProbe:
+            timeoutSeconds: 5
             httpGet:
               path: /-/ready
               port: http
           livenessProbe:
+            timeoutSeconds: 5
+            failureThreshold: 6
             httpGet:
               path: /-/healthy
               port: http

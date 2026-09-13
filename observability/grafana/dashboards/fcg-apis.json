@@ -8,7 +8,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "15s",
   "time": {
     "from": "now-30m",
@@ -356,6 +356,38 @@
           "instant": false,
           "range": true,
           "legendFormat": "{{job}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Contagem por status HTTP",
+      "description": "Contador de respostas por API e status desde a inicialização do processo. Não representa apenas o intervalo selecionado; reiniciar a API zera seus contadores.",
+      "type": "table",
+      "datasource": { "type": "prometheus", "uid": "afy2txliwdngge" },
+      "gridPos": { "x": 0, "y": 32, "w": 24, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0, "decimals": 0 },
+        "overrides": []
+      },
+      "options": { "showHeader": true },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "indexByName": { "job": 0, "code": 1, "Value": 2 },
+            "renameByName": { "job": "API", "code": "Status HTTP", "Value": "Requisições" }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (job, code) (http_requests_received_total{job=~\"${service:regex}\"})",
+          "format": "table",
+          "instant": true,
+          "range": false
         }
       ]
     }

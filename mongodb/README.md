@@ -115,7 +115,7 @@ docker build -t maicaoxd/fiap-cloud-games-catalog-api:0.4.1 ../fiap-cloud-games-
 docker push maicaoxd/fiap-cloud-games-catalog-api:0.4.1
 ```
 
-UsersAPI permanece em 0.2.0. Mantenha a tag das imagens alinhada aos manifestos. Deployment e Job migrador da CatalogAPI usam a mesma versão 0.4.0; as migrations SQL em si não mudaram.
+UsersAPI usa a versão 0.2.1. Mantenha a tag das imagens alinhada aos manifestos. Deployment e Job migrador da CatalogAPI usam a mesma versão 0.4.1.
 
 ### 2. Conferir e aplicar
 

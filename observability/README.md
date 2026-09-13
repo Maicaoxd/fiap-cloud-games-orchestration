@@ -1,4 +1,6 @@
-# Observabilidade local - Docker
+# Observabilidade — Docker e Kubernetes
+
+Este ambiente implementa a Opção A de observabilidade: Prometheus e Grafana para métricas de UsersAPI e CatalogAPI. Loki e Alloy acrescentam a coleta centralizada de logs das quatro aplicações, inclusive a Function.
 
 UsersAPI e CatalogAPI usam `prometheus-net.AspNetCore` 8.2.1. O middleware mede as requisicoes em `/api`, incluindo status retornados pela autenticacao e pelo tratamento de excecoes. Health checks e scrapes nao entram nos contadores HTTP de negocio.
 
@@ -72,6 +74,14 @@ Time series, Range, unidade requests/sec, legenda `{{job}} HTTP {{code}}`.
 
 ```promql
 sum by (job, code) (rate(http_requests_received_total{job=~"users-api|catalog-api"}[5m]))
+```
+
+### Contagem por status HTTP
+
+Visualização Table, consulta Instant com Format = Table. O contador representa as respostas desde a inicialização de cada processo, não apenas o intervalo selecionado. Oculte Time e renomeie job para API, code para Status HTTP e Value para Requisições usando a transformação Organize fields.
+
+```promql
+sum by (job, code) (http_requests_received_total{job=~"users-api|catalog-api"})
 ```
 
 ### Erros 5xx (%)
@@ -184,6 +194,8 @@ Se o Loki rejeitar entradas antigas, gere um evento novo; a configuração rejei
 ## Kubernetes
 
 Os manifestos em `k8s/observability` definem Deployments, Services ClusterIP, PVCs e Secret local do Grafana. O Prometheus possui PVC de 2Gi e retencao de sete dias; o Grafana possui PVC de 1Gi. Os processos usam usuarios nao-root, probes de startup/readiness/liveness e limites de memoria.
+
+As sondagens HTTP do Prometheus e Grafana têm timeout de cinco segundos; a liveness exige seis falhas consecutivas antes de reiniciar o container. Essas sondagens operacionais não dispensam a verificação dos targets e das fontes de dados.
 
 Loki possui PVC de 1 GiB, Service interno na porta 3100, WAL e a mesma configuração de retenção de 72 horas definida em loki/docker.yml. Alloy usa alloy/kubernetes.alloy, uma única réplica e descoberta pela API Kubernetes, sem socket Docker, acesso aos arquivos dos nós ou DaemonSet. Ambos possuem probes, limites de recursos e executam sem root. A raiz dos containers Loki e Alloy é somente para leitura; diretórios temporários usam emptyDir.
 

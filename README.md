@@ -13,6 +13,10 @@ Ambiente local da plataforma FIAP Cloud Games, com Docker Compose e manifestos K
 - Prometheus e Grafana para métricas das APIs.
 - Loki e Alloy para logs centralizados das aplicações no Docker e Kubernetes, consultados pelo Grafana.
 
+A observabilidade implementa a Opção A do Tech Challenge: Prometheus e Grafana com latência, contagem de requisições total e por status HTTP e taxa de erros. Loki e Alloy complementam essa opção com logs centralizados da Function e das APIs.
+
+Consulte a [arquitetura detalhada](docs/arquitetura.md) e as [evidências de validação da Fase 3](docs/validacao-fase-3.md).
+
 A entrada HTTP de UsersAPI e CatalogAPI passa pelo Kong. Os prefixos públicos são /identity e /catalog; internamente as APIs recebem /api. As três operações públicas são cadastro, login e recuperação de senha. As demais exigem JWT; autorização por perfil também é validada pelas APIs.
 
 ## Requisitos e organização
@@ -20,6 +24,10 @@ A entrada HTTP de UsersAPI e CatalogAPI passa pelo Kong. Os prefixos públicos s
 - Docker Desktop com containers Linux e Docker Compose.
 - Para Kubernetes: cluster disponível, kubectl e armazenamento para os PVCs.
 - .NET 10 SDK para executar os testes dos serviços.
+
+Execute Docker Compose e a stack Kubernetes separadamente quando a máquina tiver recursos limitados. As duas instâncias de SQL Server, bancos e coletores exigem memória e CPU; executar ambas as stacks simultaneamente pode causar timeouts e reinicializações, mesmo sem conflito de portas.
+
+Cada SQL Server limita sua alocação a 2048 MB por MSSQL_MEMORY_LIMIT_MB e possui limite de container de 3 GB/GiB, reservando margem para o processo. No Kubernetes, os bancos usam Recreate para evitar dois processos SQL acessando o mesmo volume durante atualizações.
 
 Mantenha os repositórios lado a lado:
 
@@ -34,6 +42,15 @@ Projetos/
 ```
 
 O Compose usa contextos de build dos repositórios irmãos. Os manifestos Kubernetes usam imagens publicadas em um registry.
+
+| Repositório | Código-fonte |
+| --- | --- |
+| Orquestração | [fiap-cloud-games-orchestration](https://github.com/Maicaoxd/fiap-cloud-games-orchestration) |
+| Usuários | [fiap-cloud-games-users-api](https://github.com/Maicaoxd/fiap-cloud-games-users-api) |
+| Catálogo | [fiap-cloud-games-catalog-api](https://github.com/Maicaoxd/fiap-cloud-games-catalog-api) |
+| Pagamentos | [fiap-cloud-games-payments-api](https://github.com/Maicaoxd/fiap-cloud-games-payments-api) |
+| Function e sua infraestrutura | [fiap-cloud-games-notifications-function](https://github.com/Maicaoxd/fiap-cloud-games-notifications-function) |
+| Notificação legada opcional | [fiap-cloud-games-notifications-api](https://github.com/Maicaoxd/fiap-cloud-games-notifications-api) |
 
 ## Executar com Docker
 
@@ -131,6 +148,46 @@ Compra:
 ```
 
 A compra retorna HTTP 202 com orderId. PaymentsAPI publica o resultado; pagamentos Approved adicionam os jogos à biblioteca e geram uma notificação simulada. A atualização é assíncrona.
+
+### Preparar o catálogo em um banco novo
+
+Se GET /catalog/games retornar uma lista vazia, crie um jogo antes da compra. Defina a senha do administrador acadêmico pelo fluxo abaixo, faça login e use o JWT administrativo em Authorization: Bearer TOKEN. Não redefina uma senha existente sem autorização do responsável pelo ambiente.
+
+POST /identity/auth/forgot-password:
+
+```json
+{
+  "email": "admin@email.com",
+  "cpf": "52998224725",
+  "birthDate": "1990-01-01",
+  "newPassword": "Senha@123",
+  "confirmNewPassword": "Senha@123"
+}
+```
+
+POST /identity/auth/login usa email e password. Com o token administrativo, envie POST /catalog/games:
+
+```json
+{
+  "title": "Jogo de exemplo",
+  "description": "Jogo para demonstração do catálogo.",
+  "price": 49.90
+}
+```
+
+Guarde gameId retornado no HTTP 201. Para acrescentar detalhes Mongo, envie PUT /catalog/games/GUID_DO_JOGO/details com o mesmo token:
+
+```json
+{
+  "developer": "Estúdio Exemplo",
+  "genres": ["Ação", "Aventura"],
+  "platforms": ["Windows"],
+  "languages": ["pt-BR"],
+  "attributes": { "maxPlayers": 1 }
+}
+```
+
+Com o token do usuário comum, consulte GET /catalog/games/GUID_DO_JOGO duas vezes. A primeira leitura compõe SQL e Mongo; a segunda pode vir do Redis. Confira detailsStatus=available e os logs CACHE NÃO ENCONTRADO e CACHE ENCONTRADO. Use esse gameId na compra e acompanhe a biblioteca e o dashboard de logs.
 
 As migrations criam o administrador admin@email.com, CPF 52998224725, nascimento 1990-01-01 e perfil Administrator. Para definir uma senha local, use POST /identity/auth/forgot-password com esses dados e os campos newPassword e confirmNewPassword. Esse mecanismo de recuperação é acadêmico e não deve ser publicado sem proteção adequada.
 
@@ -277,7 +334,7 @@ Logs já enviados permanecem no Loki mesmo após recriar o pod da Function, até
 
 ### Function e Azurite
 
-Os manifestos em k8s/notifications-function e k8s/azurite executam a imagem publicada da Function e o emulador local. Azurite possui PVC de 1 GiB e Services internos nas portas 10000, 10001 e 10002. A Function possui Service interno na porta 80, somente operacional; não há rota de negócio HTTP no Kong para ela.
+Os manifestos em k8s do repositório fiap-cloud-games-notifications-function executam a imagem publicada da Function e o emulador local. A base da orquestração inclui esses recursos diretamente, sem duplicá-los. Azurite possui PVC de 1 GiB e Services internos nas portas 10000, 10001 e 10002. A Function possui Service interno na porta 80, somente operacional; não há rota de negócio HTTP no Kong para ela.
 
 Antes de iniciar a Function, os initContainers aguardam o Azurite e executam o configurador PowerShell do RabbitMQ. O Kustomize gera o ConfigMap diretamente de rabbitmq/configure-rabbitmq.ps1 e definitions.json no repositório da Function. Alterações nesses arquivos mudam o hash do ConfigMap e provocam uma nova inicialização do Pod.
 
