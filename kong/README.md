@@ -9,7 +9,7 @@ Kong `3.9.3` em modo tradicional, com PostgreSQL `16-alpine` exclusivo e volume 
 - Kong Manager: `http://localhost:8002`, publicado somente em `127.0.0.1`.
 - UsersAPI e CatalogAPI: somente na rede Docker, porta interna `8080`; sem portas host `5001` e `5003`.
 
-PaymentsAPI e NotificationsAPI ainda mantem suas portas de desenvolvimento. A alteracao do Gateway nao removeu essas portas nem as portas de SQL Server/RabbitMQ.
+PaymentsAPI publica uma porta operacional de desenvolvimento. NotificationsAPI publica sua porta somente no perfil legado. SQL Server e RabbitMQ mantêm acessos locais para inspeção.
 
 ## Services e Routes
 
@@ -42,7 +42,21 @@ Os antigos aliases publicos `/api/...` nao existem. Swagger e health checks nao 
 
 Todo novo endpoint em `/identity/...` e `/catalog/...` exige JWT no Gateway por padrao, inclusive POST. Se for publico, precisa de uma excecao explicita no script.
 
-O JWT executa tambem em preflight. Um futuro frontend em outra origem exigira planejar CORS/OPTIONS antes de usa-lo; nao existe liberacao automatica de OPTIONS aqui.
+O JWT executa tambem em preflight. O acesso de um frontend em outra origem exige configuração explícita de CORS/OPTIONS; não existe liberação automática de OPTIONS.
+
+## Configurar pela interface
+
+Abra http://localhost:8002 e selecione o workspace padrão. Os nomes dos menus permanecem em inglês na interface do Kong.
+
+1. Em Gateway Services, abra users-api. A URL de destino é http://users-api:8080/api. Para catalog-api, use http://catalog-api:8080/api.
+2. Em Routes, consulte as cinco rotas da tabela. Cada Route referencia um Service e define como a requisição do cliente será reconhecida.
+3. Para uma rota pública, use POST e o caminho regex exato (por exemplo, ~/identity/auth/login/?$), regex_priority=100 e Strip Path desabilitado.
+4. Na rota pública, configure request-transformer, Replace > URI com /api/auth/login. Para cadastro e recuperação, use /api/users e /api/auth/forgot-password.
+5. Nas rotas protegidas, use os paths ~/identity(?:/|$) ou ~/catalog(?:/|$), Strip Path habilitado e nenhuma restrição por verbo. O prefixo removido é substituído pelo caminho /api do Service.
+6. Em Plugins das rotas protegidas, confira jwt com key_claim_name=iss, claims_to_verify contendo exp e leitura de token somente pelo header Authorization.
+7. Em Consumers, confira fiap-cloud-games e a credencial JWT HS256 com key=FiapCloudGames e o mesmo segredo das APIs.
+
+Evite criar cópias das entidades existentes. Alterações pela interface não atualizam o script versionado: registre a mesma configuração nele para reproduzir o ambiente.
 
 ## Aplicar configuracao
 
@@ -87,7 +101,13 @@ kubectl wait --for=condition=complete job/kong-configure -n fiap-cloud-games --t
 kubectl logs job/kong-configure -n fiap-cloud-games
 ```
 
-Entrada no Docker Desktop: `http://localhost:30080`. Kong Admin e PostgreSQL sao ClusterIP; Manager desativado no cluster. UsersAPI e CatalogAPI tambem sao ClusterIP, sem NodePort/LoadBalancer. ClusterIP nao e isolamento entre pods: producao exige politicas de rede e controle de acesso ao cluster.
+O proxy usa NodePort 30080. No Docker Desktop, a disponibilidade em localhost depende do provedor; se não responder, encaminhe o Service com o comando abaixo:
+
+```powershell
+kubectl port-forward svc/kong-proxy 8005:8000 --address 127.0.0.1 -n fiap-cloud-games
+```
+
+Use http://localhost:8005 enquanto o terminal estiver aberto. Kong Admin e PostgreSQL sao ClusterIP; Manager desativado no cluster. UsersAPI e CatalogAPI tambem sao ClusterIP, sem NodePort/LoadBalancer. ClusterIP nao e isolamento entre pods: producao exige politicas de rede e controle de acesso ao cluster.
 
 Consultar os Services do cluster:
 

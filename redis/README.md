@@ -1,14 +1,14 @@
 # Redis — cache do catálogo no Docker e Kubernetes
 
-## O que muda
+## Funcionamento
 
 Apenas GET /catalog/games/{gameId} (internamente /api/games/{gameId}) usa cache-aside. A resposta completa de SQL + Mongo é serializada em JSON por meio de IDistributedCache, com o provider Microsoft.Extensions.Caching.StackExchangeRedis 10.0.9. TTL absoluto de cinco minutos, não renovado por leituras.
 
 A chave efetiva no Redis é `fcg:catalog:games:v1:{gameId}`: o prefixo pertence ao provider, e a versão permite evoluir o contrato. O provider .NET armazena um hash com o JSON no campo data. A resposta contém apenas informações compartilhadas do jogo, nunca JWT, identidade ou biblioteca de usuários. Kong e a API continuam validando JWT antes de executar o caso de uso.
 
-- CACHE HIT: devolve a resposta válida do Redis sem consultar SQL ou Mongo.
-- CACHE MISS: busca o jogo SQL ativo, compõe os detalhes Mongo e grava por cinco minutos.
-- CACHE INVALIDATED: remove a chave após atualização SQL, desativação ou PUT dos detalhes Mongo.
+- CACHE ENCONTRADO: devolve a resposta válida do Redis sem consultar SQL ou Mongo.
+- CACHE NÃO ENCONTRADO: busca o jogo SQL ativo, compõe os detalhes Mongo e grava por cinco minutos.
+- CACHE INVALIDADO: remove a chave após atualização SQL, desativação ou PUT dos detalhes Mongo.
 
 A listagem, criação de jogo, compras, pedidos e biblioteca não usam Redis. Compras continuam calculando preço e disponibilidade diretamente no SQL, não pela resposta cacheada.
 
@@ -16,11 +16,11 @@ A listagem, criação de jogo, compras, pedidos e biblioteca não usam Redis. Co
 
 Jogo inexistente/inativo (404) não é cacheado. Um jogo sem documento Mongo pode ser cacheado com notConfigured; criar seus detalhes invalida a chave. Uma leitura que resultou em unavailable não entra no cache.
 
-Um cache saudável já existente pode continuar retornando available/notConfigured durante uma queda do Mongo: detailsStatus descreve a resposta armazenada, não um health check atual. Sem cache, permanece a consulta degradada da etapa Mongo.
+Um cache saudável já existente pode continuar retornando available/notConfigured durante uma queda do Mongo: detailsStatus descreve a resposta armazenada, não um health check atual. Sem cache, permanece a consulta degradada do acesso direto ao MongoDB.
 
 Falhas operacionais/timeout do Redis são warnings sem credenciais. Cada operação tem limite de um segundo; após uma falha, o adapter scoped evita novas tentativas na mesma requisição. A API segue usando os bancos. Erros inesperados e cancelamento do cliente não são escondidos. Payloads corruptos/incompatíveis no cache são descartados e recarregados.
 
-As alterações invalidam depois de salvar, usando um prazo próprio, mesmo se o cliente desconectar após o commit. Cache e bancos não participam de uma transação. Se uma invalidação falhar durante uma partição de rede, uma chave antiga ainda existente pode reaparecer na reconexão até expirar. Também existe a corrida clássica entre uma leitura/população concorrente e a invalidação. Nesta fase a consistência é eventual, limitada pelo TTL; não foram introduzidos locks distribuídos, outbox ou controle de versões entre bancos. Alterações diretas via SQL/Compass não executam invalidação: espere o TTL ou remova somente a chave daquele jogo.
+As alterações invalidam depois de salvar, usando um prazo próprio, mesmo se o cliente desconectar após o commit. Cache e bancos não participam de uma transação. Se uma invalidação falhar durante uma partição de rede, uma chave antiga ainda existente pode reaparecer na reconexão até expirar. Também existe a corrida clássica entre uma leitura/população concorrente e a invalidação. A consistência é eventual, limitada pelo TTL; não há locks distribuídos, outbox ou controle de versões entre bancos. Alterações diretas via SQL/Compass não executam invalidação: espere o TTL ou remova somente a chave daquele jogo.
 
 Redis não é fonte de dados: pode perder ou expulsar todo o cache sem perda de jogos/detalhes. Usa maxmemory 128mb, política allkeys-lru, sem RDB/AOF e sem volume persistente.
 
@@ -67,10 +67,10 @@ HGET fcg:catalog:games:v1:GUID data
 
 Para Redis Insight, conecte 127.0.0.1:6379, usuário default e senha configurada. Não exponha essa porta à rede de produção.
 
-1. Faça GET pelo Kong com JWT. Verifique CACHE MISS e TTL entre 1 e 300.
-2. Repita o GET. Verifique CACHE HIT; TTL continua caindo.
+1. Faça GET pelo Kong com JWT. Verifique CACHE NÃO ENCONTRADO e TTL entre 1 e 300.
+2. Repita o GET. Verifique CACHE ENCONTRADO; TTL continua caindo.
 3. Faça PUT do jogo ou de /details. Antes do próximo GET, EXISTS deve retornar 0.
-4. Consulte novamente. Novo MISS e resposta atualizada.
+4. Consulte novamente. Novo registro de cache não encontrado e resposta atualizada.
 5. Desative o jogo. A chave é invalidada e o GET retorna 404.
 6. Para exercitar fallback em ambiente acadêmico, pare apenas catalog-redis; GET continua consultando SQL/Mongo. Religue-o ao terminar.
 
@@ -78,7 +78,7 @@ Não use FLUSHALL/FLUSHDB em bancos compartilhados. Para reiniciar somente o tes
 
 ## Arquivos e testes
 
-A interface IGameCache fica em Application/Abstractions/Caching; RedisGameCache e suas opções ficam em Infrastructure/Caching. GetGameUseCase aplica cache-aside; UpdateGameUseCase, DeactivateGameUseCase e UpsertGameDetailsUseCase invalidam depois de persistir. Controllers e contratos HTTP não mudaram.
+A interface IGameCache fica em Application/Abstractions/Caching; RedisGameCache e suas opções ficam em Infrastructure/Caching. GetGameUseCase aplica cache-aside; UpdateGameUseCase, DeactivateGameUseCase e UpsertGameDetailsUseCase invalidam depois de persistir.
 
 No repositório CatalogAPI:
 
@@ -86,7 +86,7 @@ No repositório CatalogAPI:
 dotnet test tests/CatalogAPI.Tests/CatalogAPI.Tests.csproj
 ```
 
-Os testes cobrem TTL/JSON, HIT sem bancos, MISS, cache degradado/corrompido, Redis desabilitado, timeout/falhas/cancelamento e ordem de invalidação após commit.
+Os testes cobrem TTL/JSON, leitura do cache sem bancos, ausência de cache, cache degradado/corrompido, Redis desabilitado, timeout/falhas/cancelamento e ordem de invalidação após commit.
 
 ## Kubernetes
 
@@ -132,26 +132,6 @@ Para testar pelo Kong, abra outro terminal:
 kubectl port-forward service/kong-proxy 8005:8000 -n fiap-cloud-games --address 127.0.0.1
 ```
 
-Use GET http://127.0.0.1:8005/catalog/games/{gameId} com JWT e repita os testes de MISS/HIT/TTL/invalidation. Nenhuma imagem e publicada automaticamente.
+Use GET http://127.0.0.1:8005/catalog/games/{gameId} com JWT e repita os testes de leitura, reutilização, TTL e invalidação. As imagens devem estar disponíveis no registry ou runtime dos nós.
 
 Referência do provider: [cache distribuído no ASP.NET Core](https://learn.microsoft.com/en-us/aspnet/core/performance/caching/distributed?view=aspnetcore-10.0).
-
-### Estado da validacao Kubernetes em 13/09/2026
-
-Redis aplicado no contexto docker-desktop: Deployment 1/1 Ready sem reinicios, Service ClusterIP com endpoint pronto. PING autenticado aprovado; acesso sem senha rejeitado. Escrita/leitura e expiracao de uma chave temporaria em cinco segundos aprovadas; chave removida. Configuracoes 128 MiB/allkeys-lru/AOF desabilitado confirmadas. Kustomize e git diff --check validos; 115 testes CatalogAPI aprovados.
-
-Apos publicacao e subida pelo usuario, CatalogAPI 0.4.0 e Redis ficaram 1/1 Ready sem reinicios, e os quatro Jobs reais terminaram. Validacao integrada pelo Kong com JWT de fixture: GET MISS/HIT com payload identico; TTL 300 -> 298 sem renovacao; sem JWT 401; usuario comum PUT details 403; PUT Mongo e PUT SQL invalidaram e a leitura seguinte refletiu os novos valores; expiracao antecipada somente da chave temporaria e repopulacao aprovadas; desativacao 204 invalidou, GET 404 nao foi cacheado. CACHE MISS/HIT/INVALIDATED confirmados nos logs. Autenticacao e configuracoes Redis confirmadas novamente.
-
-Somente o jogo/documento temporarios foram removidos, apos verificar identidade e ausencia de referencias; chave ausente e port-forward temporario encerrado. Dados existentes preservados. Nenhuma queda/reinicio dos bancos ou Redis foi provocada nesta validacao Kubernetes: fallback em indisponibilidade permanece coberto pelos testes unitarios e pela validacao Docker anterior, nao por este teste integrado.
-
-## Validação realizada no Docker
-
-- 283 testes aprovados: Users 155, Catalog 115 (94 anteriores + 21 novos), Payments 8, Notifications 5.
-- Imagem local da CatalogAPI compilada e Redis autenticado/healthy em 127.0.0.1:6379.
-- Pelo Kong: MISS/HIT com mesma resposta, TTL inicial 300 segundos sem renovação no HIT e JWT ausente rejeitado com 401.
-- Alterações SQL e Mongo removeram a chave; GET seguinte refletiu os dados atuais. Expiração da chave temporária foi exercitada e repopulada.
-- Desativação removeu o cache; GET 404 não criou uma nova chave.
-- Mongo fora do ar: HIT continuou disponível; em MISS a resposta unavailable não foi cacheada.
-- Redis fora do ar: GET SQL/Mongo e PUT de detalhes continuaram retornando 200; warnings registrados. Após recuperação, cache recebeu os dados atualizados.
-- CACHE MISS, CACHE HIT e CACHE INVALIDATED confirmados nos logs.
-- Apenas o jogo/documento temporários foram removidos; não restou chave daquele jogo. Bancos e dados existentes preservados. Kubernetes não foi alterado e nenhuma imagem foi publicada.

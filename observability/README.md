@@ -6,7 +6,7 @@ Cada API expoe `/metrics` sem JWT, somente pela rede interna do Compose. As port
 
 Prometheus busca `/metrics` nas duas APIs a cada 15 segundos, pela porta interna 8080. Ele armazena as series em volume persistente, com retencao de sete dias. As APIs nao enviam metricas ao Prometheus: e o Prometheus que as consulta.
 
-Grafana carrega a fonte `prometheus` e o dashboard `FIAP Cloud Games - APIs` por arquivos versionados de provisioning. O UID da fonte criada manualmente foi preservado para evitar duplicidade. O dashboard fica na pasta `FIAP Cloud Games`, com UID `fcg-apis`, filtro por API e atualizacao a cada 15 segundos.
+Grafana carrega a fonte `prometheus` e o dashboard `FIAP Cloud Games - APIs` por arquivos versionados de provisioning. O dashboard fica na pasta `FIAP Cloud Games`, com UID `fcg-apis`, filtro por API e atualizacao a cada 15 segundos.
 
 ## Subir
 
@@ -124,11 +124,9 @@ Abra `http://localhost:9090/targets`: ambos os targets devem estar UP. No Grafan
 
 Os graficos mostram somente series existentes. Gere trafego que alcance as APIs; `rate` requer ao menos duas amostras do contador. Nao e necessario simular erro 5xx em producao nem alterar dados para verificar o dashboard. Disponibilidade UP significa coleta funcionando, nao que todas as dependencias do dominio estejam saudaveis.
 
-Ainda nao existem alertas, logs centralizados, tracing, metricas de negocio ou monitoracao do Kong. Nao apagar os volumes para uma parada normal.
+O ambiente coleta métricas HTTP e de processo de UsersAPI e CatalogAPI. Não inclui alertas, logs centralizados, tracing ou monitoração do Kong. Preserve os volumes ao parar o ambiente.
 
 ## Kubernetes
-
-Validado no Docker Desktop: UsersAPI/CatalogAPI 0.2.0 em execucao, quatro Jobs concluidos, PVCs Bound, dois targets UP e sete consultas do dashboard executadas pelo Grafana. Na primeira subida sem cache, os Jobs de migrations atingiram o antigo limite de cinco minutos; o limite foi ampliado para dez minutos e os dois Jobs foram recriados, preservando os bancos.
 
 Os manifestos em `k8s/observability` definem Deployments, Services ClusterIP, PVCs e Secret local do Grafana. O Prometheus possui PVC de 2Gi e retencao de sete dias; o Grafana possui PVC de 1Gi. Os processos usam usuarios nao-root, probes de startup/readiness/liveness e limites de memoria.
 
@@ -138,25 +136,15 @@ O Kustomize gera os ConfigMaps diretamente dos arquivos deste diretorio, incluin
 
 ### Imagens instrumentadas
 
-Os Deployments e Jobs de migrations referenciam UsersAPI e CatalogAPI `0.2.0`, publicadas no Docker Hub. Em futuras versoes, as tags precisam existir no registry ou estar carregadas no runtime dos nos antes do deploy. Alterar o YAML nao publica uma imagem.
-
-Para gerar a partir dos repositorios instrumentados, na raiz da orquestracao:
-
-```powershell
-docker build -t maicaoxd/fiap-cloud-games-users-api:0.2.0 ../fiap-cloud-games-users-api
-docker build -t maicaoxd/fiap-cloud-games-catalog-api:0.2.0 ../fiap-cloud-games-catalog-api
-```
-
-Depois carregar ambas no runtime Kubernetes local, conforme o provedor, ou publicar no Docker Hub com autorizacao e acesso ao namespace `maicaoxd`. Imagens apenas no Docker local nao sao necessariamente visiveis ao containerd do Kubernetes. Sem essa etapa, os Pods podem ficar em ImagePullBackOff.
+A base da orquestração referencia UsersAPI 0.2.0 e CatalogAPI 0.4.0. Disponibilize essas imagens no registry ou runtime dos nós antes de aplicar. Alterar uma tag no manifesto não constrói nem publica a imagem.
 
 ### Aplicar e validar
 
-Confirme que `kubectl config current-context` aponta para o cluster desejado e que `kubectl get nodes` responde. Disponibilize as imagens acima antes de continuar.
+Confirme que `kubectl config current-context` aponta para o cluster desejado e que `kubectl get nodes` responde. Disponibilize as imagens referenciadas pelos manifestos.
 
-Como os Jobs de migrations tiveram a imagem alterada, e necessario recria-los para evitar erro de template imutavel. Isso remove somente os Jobs/Pods anteriores, nao os bancos ou PVCs:
+Ao atualizar a imagem de um Job existente, confirme sua conclusão e recrie somente esse Job para evitar erro de template imutável. Em um cluster novo, aplique diretamente a base:
 
 ```powershell
-kubectl delete job users-api-migration catalog-api-migration -n fiap-cloud-games --ignore-not-found
 kubectl apply -k ./k8s
 kubectl wait --for=condition=complete job/users-api-migration job/catalog-api-migration -n fiap-cloud-games --timeout=600s
 kubectl rollout status deployment/users-api -n fiap-cloud-games --timeout=300s

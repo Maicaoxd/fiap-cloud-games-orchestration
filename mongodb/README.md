@@ -4,7 +4,7 @@
 
 SQL Server continua sendo a fonte de jogos, preço, disponibilidade, pedidos e biblioteca. MongoDB guarda apenas detalhes opcionais, na coleção `FiapCloudGamesCatalog.game_details`. O `_id` é exatamente o `Game.Id` SQL, gravado como UUID BSON Standard (subtipo 4), não ObjectId. O índice único de `_id` já garante um documento por jogo.
 
-Não há migrations SQL, transação entre bancos ou chave estrangeira SQL/Mongo. A aplicação verifica o jogo SQL antes de consultar/gravar detalhes. Jogos inativos e inexistentes continuam retornando 404. A listagem, o CRUD dos campos SQL e as compras não acessam Mongo nesta etapa. A desativação preserva o documento para histórico, mas impede sua consulta/atualização por esses endpoints.
+Não há migrations SQL, transação entre bancos ou chave estrangeira SQL/Mongo. A aplicação verifica o jogo SQL antes de consultar/gravar detalhes. Jogos inativos e inexistentes continuam retornando 404. A listagem, o CRUD dos campos SQL e as compras não acessam Mongo nesses endpoints. A desativação preserva o documento para histórico, mas impede sua consulta/atualização por esses endpoints.
 
 ## Subir e verificar
 
@@ -49,10 +49,10 @@ Headers: `Authorization: Bearer <token>` e `Content-Type: application/json`.
 {
   "developer": "Estudio Exemplo",
   "publisher": "Publicadora Exemplo",
-  "genres": ["Action", "Adventure"],
+  "genres": ["Ação", "Aventura"],
   "platforms": ["Windows", "Linux"],
   "languages": ["pt-BR", "en-US"],
-  "tags": ["Single-player"],
+  "tags": ["Um jogador"],
   "media": {
     "coverUrl": "https://cdn.example.com/game/cover.jpg",
     "screenshotUrls": ["https://cdn.example.com/game/screenshot-1.jpg"],
@@ -84,7 +84,7 @@ Retornos: 400 conteúdo inválido, 401 sem JWT/inválido, 403 não administrador
 
 Seleção de servidor/conexão/operação Mongo têm limite configurado de dois segundos. Cancelamento do cliente e erros inesperados de programação/serialização não são mascarados como ausência de detalhes. A readiness da API continua verificando SQL/RabbitMQ: Mongo é opcional para leitura e não impede os fluxos principais.
 
-Para experimentar a falha em ambiente local, pare só `catalog-mongodb`, consulte um jogo e tente PUT; depois religue o banco com `docker compose start catalog-mongodb`. Não faça esse exercício em produção. No futuro Redis, respostas `unavailable` não devem ser cacheadas como detalhes definitivos.
+Para experimentar a falha em ambiente local, pare só `catalog-mongodb`, consulte um jogo e tente PUT; depois religue o banco com `docker compose start catalog-mongodb`. Não faça esse exercício em produção. O Redis não armazena respostas unavailable. Um cache já populado pode continuar respondendo durante uma queda do Mongo; para observar o comportamento sem cache, use um jogo sem chave ou aguarde o TTL.
 
 ## Estrutura e testes
 
@@ -94,23 +94,13 @@ CatalogAPI: contrato tipado e validação em Application/Games/Details, interfac
 dotnet test tests/CatalogAPI.Tests/CatalogAPI.Tests.csproj
 ```
 
-Execute no repositório CatalogAPI. Os testes cobrem validação, normalização, BSON/UUID, estados de leitura, cancelamento, jogos ausentes/inativos, gravação e proteção administrativa. Os manifestos Kubernetes agora usam CatalogAPI 0.3.0 e incluem sua infraestrutura/configuração Mongo.
+Execute no repositório CatalogAPI. Os testes cobrem validação, normalização, BSON/UUID, estados de leitura, cancelamento, jogos ausentes/inativos, gravação e proteção administrativa. Os manifestos Kubernetes usam CatalogAPI 0.4.0 e incluem sua infraestrutura/configuração Mongo.
 
 Referências: [UUID no driver .NET](https://www.mongodb.com/docs/drivers/csharp/current/serialization/guids/), [configuração da conexão](https://www.mongodb.com/docs/drivers/csharp/current/connect/connection-options/), [notas da versão 8.0](https://www.mongodb.com/docs/manual/release-notes/8.0).
 
-## Validação realizada no Docker
-
-- 262 testes aprovados: Users 155, Catalog 94 (68 existentes + 26 novos), Payments 8, Notifications 5.
-- Imagem local da CatalogAPI compilada e migrations SQL concluídas.
-- Pelo Kong: criação do jogo SQL, GET sem documento, dois PUTs sem duplicidade, consulta composta, preservação de createdAt e limpeza de campos omitidos.
-- Status 401/403/400/404/413 comprovados; jogos inativos rejeitam consulta/gravação de detalhes.
-- Documento único UUID BSON, sem duplicação de preço; persistência após reiniciar Mongo.
-- Queda simulada: GET 200/unavailable em aproximadamente dois segundos; PUT 503; recuperação sem modificar os detalhes.
-- Jogo e documento temporários removidos ao final, sem alterações nos jogos existentes. Nenhum script auxiliar de teste ou Job foi adicionado.
-
 ## Kubernetes — publicar, aplicar e testar
 
-Os recursos ficam em `k8s/catalog-mongodb` e são incluídos pelo Kustomize principal. A ConfigMap é gerada diretamente de `mongodb/init-catalog.js`, com hash no nome; o Deployment monta esse mesmo arquivo. Não há Job extra de configuração ou teste Mongo.
+Os recursos ficam em `k8s/catalog-mongodb` e são incluídos pelo Kustomize principal. A ConfigMap é gerada diretamente de `mongodb/init-catalog.js`, com hash no nome; o Deployment monta esse mesmo arquivo.
 
 O Mongo é uma instância única acadêmica, sem replica set/alta disponibilidade. Usa estratégia Recreate para evitar dois pods disputando o PVC ReadWriteOnce, disco de 2 GiB, requests 100m/256 MiB e limites 1 CPU/1 GiB. O cache WiredTiger fica limitado a 0.25 GB, abaixo do limite do container, conforme a [orientação oficial para containers](https://www.mongodb.com/docs/v8.0/core/wiredtiger/). Startup/liveness verificam a porta; readiness exige autenticação do usuário da aplicação e ping.
 
@@ -121,11 +111,11 @@ A senha da API vem diretamente da chave FCG_MONGODB_PASSWORD do Secret catalog-m
 Na raiz da orquestração:
 
 ```powershell
-docker build -t maicaoxd/fiap-cloud-games-catalog-api:0.3.0 ../fiap-cloud-games-catalog-api
-docker push maicaoxd/fiap-cloud-games-catalog-api:0.3.0
+docker build -t maicaoxd/fiap-cloud-games-catalog-api:0.4.0 ../fiap-cloud-games-catalog-api
+docker push maicaoxd/fiap-cloud-games-catalog-api:0.4.0
 ```
 
-UsersAPI permanece em 0.2.0. Não reutilize 0.2.0 para código Mongo. Deployment e Job migrador da CatalogAPI usam a mesma versão 0.3.0; as migrations SQL em si não mudaram.
+UsersAPI permanece em 0.2.0. Mantenha a tag das imagens alinhada aos manifestos. Deployment e Job migrador da CatalogAPI usam a mesma versão 0.4.0; as migrations SQL em si não mudaram.
 
 ### 2. Conferir e aplicar
 
@@ -158,7 +148,7 @@ kubectl delete job catalog-api-migration -n fiap-cloud-games --ignore-not-found
 kubectl apply -k k8s/
 ```
 
-Se estiver em execução, aguarde sua conclusão antes da remoção. Esta etapa não altera Kong nem seus Jobs. Não precisa recriar kong-configure em um cluster já configurado só para adicionar Mongo.
+Se estiver em execução, aguarde sua conclusão antes da remoção. Adicionar MongoDB não exige alterar as Routes do Kong. Não precisa recriar kong-configure em um cluster já configurado só para adicionar Mongo.
 
 ### 3. Verificar
 
@@ -189,17 +179,4 @@ kubectl exec -it deployment/catalog-mongodb -n fiap-cloud-games -- mongosh --use
 
 Informe a senha interativamente e consulte db.game_details.findOne({_id: UUID("GUID-DO-JOGO")}).
 
-Para parar só o Mongo sem perder dados: kubectl scale deployment/catalog-mongodb --replicas=0 -n fiap-cloud-games. Nesse período, GET de jogo SQL ativo retorna unavailable e PUT retorna 503. Religue com --replicas=1. Para verificar persistência, faça rollout restart deployment/catalog-mongodb e aguarde rollout status: o mesmo documento deve continuar disponível. Não execute kubectl delete -k k8s/ se quiser preservar PVCs; isso pode excluir os dados.
-
-### Estado da validação Kubernetes
-
-Validação em execução concluída em 2026-09-13 no contexto docker-desktop, com CatalogAPI 0.3.0 publicada. Os manifestos foram aplicados, migrations/configurador concluíram e Mongo, CatalogAPI e Kong ficaram Ready. O PVC Mongo está Bound (2 GiB) e o Service permanece ClusterIP.
-
-- Pelo Kong: GET de jogo sem documento retorna 200/notConfigured; PUT administrativo grava e atualiza; GET retorna 200/available com SQL e Mongo.
-- Dois PUTs mantêm um único documento UUID BSON, preservam createdAt e limpam campos omitidos/null sem alterar título ou preço SQL.
-- Sem token, token inválido ou expirado: 401. Usuário comum: GET 200, PUT 403.
-- Requisitos negativos, URL inválida, campos desconhecidos e atributos aninhados: 400. Corpo acima de 64 KiB: 413. Jogo inexistente/inativo: GET/PUT 404.
-- Reinício do Mongo preservou o documento no PVC.
-- Com Mongo escalado a zero: GET 200/unavailable em aproximadamente 2034 ms e PUT 503, com warnings nos logs da API.
-- Após restaurar uma réplica, Mongo voltou a Ready e os detalhes originais continuaram disponíveis.
-- Somente o jogo temporário e seu documento foram removidos, verificando ID/título e ausência de referências. Port-forward de teste encerrado. Nenhum script/Job auxiliar foi adicionado e nenhum fluxo de compra/pagamento foi executado.
+Para parar só o Mongo sem perder dados: kubectl scale deployment/catalog-mongodb --replicas=0 -n fiap-cloud-games. Nesse período, GET de jogo SQL ativo sem cache retorna unavailable e PUT retorna 503. Respostas já armazenadas no Redis podem permanecer disponíveis até o TTL. Religue com --replicas=1. Para verificar persistência, faça rollout restart deployment/catalog-mongodb e aguarde rollout status: o mesmo documento deve continuar disponível. Não execute kubectl delete -k k8s/ se quiser preservar PVCs; isso pode excluir os dados.

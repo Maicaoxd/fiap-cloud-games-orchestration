@@ -1,4 +1,60 @@
 services:
+  rabbitmq-topology:
+    image: python:3.13-alpine
+    command: ["python", "/config/configure.py"]
+    environment:
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
+    volumes:
+      - ../fiap-cloud-games-notifications-function/rabbitmq:/config:ro
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - fcg-network
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:3.35.0
+    command: azurite --location /data --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --disableProductStyleUrl
+    environment:
+      AZURITE_ACCOUNTS: "fcglocal:ZmlhcC1jbG91ZC1nYW1lcy1sb2NhbC1zdG9yYWdlLWtleQ=="
+    volumes:
+      - azurite-data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "const net=require('net');const s=net.connect(10000,'127.0.0.1',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),2000)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - fcg-network
+
+  notifications-function:
+    build:
+      context: ../fiap-cloud-games-notifications-function
+      dockerfile: Dockerfile
+    image: fiap-cloud-games-notifications-function:local
+    environment:
+      AzureWebJobsStorage: "DefaultEndpointsProtocol=http;AccountName=fcglocal;AccountKey=ZmlhcC1jbG91ZC1nYW1lcy1sb2NhbC1zdG9yYWdlLWtleQ==;BlobEndpoint=http://azurite:10000/fcglocal;QueueEndpoint=http://azurite:10001/fcglocal;TableEndpoint=http://azurite:10002/fcglocal"
+      RabbitMQConnection: "amqp://guest:guest@rabbitmq:5672/%2F"
+      UserCreatedQueue: notifications-user-created-event
+      PaymentProcessedQueue: notifications-payment-processed-event
+      AzureWebJobs.UserCreatedFunction.Disabled: "false"
+      AzureWebJobs.PaymentProcessedFunction.Disabled: "false"
+    depends_on:
+      rabbitmq-topology:
+        condition: service_completed_successfully
+      azurite:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:80/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - fcg-network
+
   catalog-redis:
     image: redis:8.2.9-alpine
     ports:
@@ -132,12 +188,30 @@ services:
     depends_on:
       kong-migrations:
         condition: service_completed_successfully
+      users-api:
+        condition: service_started
+      catalog-api:
+        condition: service_started
     healthcheck:
       test: ["CMD", "kong", "health"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 10s
+    networks:
+      - fcg-network
+
+  kong-configure:
+    image: mcr.microsoft.com/powershell:7.4-ubuntu-22.04
+    command: ["pwsh", "-NoProfile", "-File", "/config/configure-kong.ps1", "-AdminUrl", "http://kong:8001"]
+    environment:
+      FCG_JWT_SECRET: "fiap-cloud-games-local-development-secret-key"
+    volumes:
+      - ./kong:/config:ro
+    depends_on:
+      kong:
+        condition: service_healthy
+    restart: "no"
     networks:
       - fcg-network
 
@@ -344,6 +418,7 @@ services:
       - fcg-network
 
   notifications-api:
+    profiles: ["legacy-notifications"]
     build:
       context: ../fiap-cloud-games-notifications-api
       dockerfile: Dockerfile
@@ -365,6 +440,7 @@ services:
       - fcg-network
 
 volumes:
+  azurite-data:
   catalog-mongodb-data:
   prometheus-data:
   grafana-data:
