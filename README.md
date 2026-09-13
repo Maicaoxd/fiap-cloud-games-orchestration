@@ -25,6 +25,12 @@ A CatalogAPI agora compoe a consulta individual de jogos com detalhes opcionais 
 
 Consulte [contrato, comandos e testes do MongoDB](mongodb/README.md).
 
+## Redis no Docker
+
+GET individual de jogos agora usa cache da resposta SQL + Mongo por cinco minutos, com IDistributedCache. Atualizacao/desativacao SQL e alteracao dos detalhes Mongo invalidam a chave. Redis tem autenticacao e acesso local em 127.0.0.1:6379; dados principais continuam nos bancos. Kubernetes ainda nao inclui Redis.
+
+Consulte [funcionamento, comandos e testes do cache](redis/README.md).
+
 ## Repositorios esperados
 
 A estrutura local esperada e que os repositorios fiquem lado a lado:
@@ -51,6 +57,7 @@ O compose sobe:
 - `users-sqlserver`: banco SQL Server da UsersAPI.
 - `catalog-sqlserver`: banco SQL Server da CatalogAPI.
 - `catalog-mongodb`: detalhes opcionais do catalogo, persistentes e internos.
+- `catalog-redis`: cache temporario das consultas individuais de jogos.
 - `users-api-migrator`: aplica migrations da UsersAPI.
 - `catalog-api-migrator`: aplica migrations da CatalogAPI.
 - `users-api`: cadastro, login, JWT e publicacao de `UserCreatedEvent`.

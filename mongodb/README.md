@@ -193,4 +193,13 @@ Para parar só o Mongo sem perder dados: kubectl scale deployment/catalog-mongod
 
 ### Estado da validação Kubernetes
 
-Kustomize renderizado e referências conferidas (Secret compartilhado, ConfigMap com hash, PVC, Service interno e imagens 0.3.0). A aplicação no cluster, readiness, persistência e testes HTTP ainda dependem de habilitar/configurar Kubernetes e disponibilizar a imagem: na implementação, kubectl estava sem contextos configurados. Não confundir essa conferência estática com validação em execução.
+Validação em execução concluída em 2026-09-13 no contexto docker-desktop, com CatalogAPI 0.3.0 publicada. Os manifestos foram aplicados, migrations/configurador concluíram e Mongo, CatalogAPI e Kong ficaram Ready. O PVC Mongo está Bound (2 GiB) e o Service permanece ClusterIP.
+
+- Pelo Kong: GET de jogo sem documento retorna 200/notConfigured; PUT administrativo grava e atualiza; GET retorna 200/available com SQL e Mongo.
+- Dois PUTs mantêm um único documento UUID BSON, preservam createdAt e limpam campos omitidos/null sem alterar título ou preço SQL.
+- Sem token, token inválido ou expirado: 401. Usuário comum: GET 200, PUT 403.
+- Requisitos negativos, URL inválida, campos desconhecidos e atributos aninhados: 400. Corpo acima de 64 KiB: 413. Jogo inexistente/inativo: GET/PUT 404.
+- Reinício do Mongo preservou o documento no PVC.
+- Com Mongo escalado a zero: GET 200/unavailable em aproximadamente 2034 ms e PUT 503, com warnings nos logs da API.
+- Após restaurar uma réplica, Mongo voltou a Ready e os detalhes originais continuaram disponíveis.
+- Somente o jogo temporário e seu documento foram removidos, verificando ID/título e ausência de referências. Port-forward de teste encerrado. Nenhum script/Job auxiliar foi adicionado e nenhum fluxo de compra/pagamento foi executado.

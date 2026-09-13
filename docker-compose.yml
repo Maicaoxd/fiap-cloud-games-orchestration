@@ -1,4 +1,22 @@
 services:
+  catalog-redis:
+    image: redis:8.2.9-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    environment:
+      FCG_REDIS_PASSWORD: "${FCG_REDIS_PASSWORD:-fcg-local-redis}"
+    command:
+      - /bin/sh
+      - -ec
+      - exec redis-server --requirepass "$$FCG_REDIS_PASSWORD" --save "" --appendonly no --maxmemory 128mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD-SHELL", "test \"$$(REDISCLI_AUTH=\"$$FCG_REDIS_PASSWORD\" redis-cli ping)\" = PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - fcg-network
+
   catalog-mongodb:
     image: mongo:8.0.29
     ports:
@@ -272,6 +290,9 @@ services:
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_URLS: "http://+:8080"
       Api__UseDeveloperExceptionPage: "false"
+      Redis__Enabled: "true"
+      Redis__Configuration: "catalog-redis:6379"
+      Redis__Password: "${FCG_REDIS_PASSWORD:-fcg-local-redis}"
       MongoDb__ConnectionString: "mongodb://catalog-mongodb:27017"
       MongoDb__Username: "fcg-catalog"
       MongoDb__Password: "${FCG_MONGODB_PASSWORD:-fcg-local-mongo}"
@@ -293,6 +314,8 @@ services:
         condition: service_completed_successfully
       catalog-mongodb:
         condition: service_healthy
+      catalog-redis:
+        condition: service_started
       rabbitmq:
         condition: service_healthy
     networks:
