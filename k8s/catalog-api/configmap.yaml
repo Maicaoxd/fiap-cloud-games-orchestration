@@ -12,6 +12,8 @@ data:
   MongoDb__DatabaseName: FiapCloudGamesCatalog
   MongoDb__CollectionName: game_details
   MongoDb__OperationTimeoutSeconds: "2"
+  Redis__Enabled: "true"
+  Redis__Configuration: catalog-redis:6379
   Jwt__Issuer: FiapCloudGames
   Jwt__Audience: FiapCloudGames
   Jwt__ExpirationMinutes: "60"

@@ -17,7 +17,7 @@ UsersAPI e CatalogAPI expoem `/metrics` internamente. O Prometheus coleta as dua
 - Prometheus: `http://localhost:9090`.
 - Grafana: `http://localhost:3000` (login local inicial `admin` / `fcg-local-grafana`).
 
-Consulte [configuracao e uso](observability/README.md). Os manifestos de observabilidade Kubernetes estao em `k8s/observability`. As imagens esperadas sao UsersAPI 0.2.0 e CatalogAPI 0.3.0 (observabilidade e Mongo).
+Consulte [configuracao e uso](observability/README.md). Os manifestos de observabilidade Kubernetes estao em `k8s/observability`. As imagens esperadas sao UsersAPI 0.2.0 e CatalogAPI 0.4.0 (observabilidade, Mongo e Redis).
 
 ## MongoDB no Docker e Kubernetes
 
@@ -25,9 +25,9 @@ A CatalogAPI agora compoe a consulta individual de jogos com detalhes opcionais 
 
 Consulte [contrato, comandos e testes do MongoDB](mongodb/README.md).
 
-## Redis no Docker
+## Redis no Docker e Kubernetes
 
-GET individual de jogos agora usa cache da resposta SQL + Mongo por cinco minutos, com IDistributedCache. Atualizacao/desativacao SQL e alteracao dos detalhes Mongo invalidam a chave. Redis tem autenticacao e acesso local em 127.0.0.1:6379; dados principais continuam nos bancos. Kubernetes ainda nao inclui Redis.
+GET individual de jogos agora usa cache da resposta SQL + Mongo por cinco minutos, com IDistributedCache. Atualizacao/desativacao SQL e alteracao dos detalhes Mongo invalidam a chave. Redis tem autenticacao e acesso local Docker em 127.0.0.1:6379; no Kubernetes e ClusterIP interno com inspecao via port-forward. Dados principais continuam nos bancos.
 
 Consulte [funcionamento, comandos e testes do cache](redis/README.md).
 
@@ -198,7 +198,7 @@ Aplicar:
 ```powershell
 # Recria somente o configurador para reaplicar mudancas de Routes/plugins.
 kubectl delete job kong-configure -n fiap-cloud-games --ignore-not-found
-# Ao atualizar um cluster existente para CatalogAPI 0.3.0:
+# Ao atualizar um cluster existente para CatalogAPI 0.4.0:
 # verifique se a migration anterior terminou antes de recriar o Job.
 kubectl delete job catalog-api-migration -n fiap-cloud-games --ignore-not-found
 kubectl apply -k .\k8s

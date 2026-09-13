@@ -45,7 +45,7 @@ spec:
               echo "SQL Server disponivel; iniciando migrations."
       containers:
         - name: catalog-api-migration
-          image: maicaoxd/fiap-cloud-games-catalog-api:0.3.0
+          image: maicaoxd/fiap-cloud-games-catalog-api:0.4.0
           imagePullPolicy: IfNotPresent
           command: ["dotnet", "CatalogAPI.dll", "--migrate"]
           envFrom:
@@ -54,6 +54,8 @@ spec:
             - secretRef:
                 name: catalog-api-secret
           env:
+            - name: Redis__Enabled
+              value: "false"
             - name: MongoDb__Password
               valueFrom:
                 secretKeyRef:

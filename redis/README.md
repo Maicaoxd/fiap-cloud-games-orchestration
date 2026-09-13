@@ -1,4 +1,4 @@
-# Redis — cache do catálogo no Docker
+# Redis — cache do catálogo no Docker e Kubernetes
 
 ## O que muda
 
@@ -88,9 +88,61 @@ dotnet test tests/CatalogAPI.Tests/CatalogAPI.Tests.csproj
 
 Os testes cobrem TTL/JSON, HIT sem bancos, MISS, cache degradado/corrompido, Redis desabilitado, timeout/falhas/cancelamento e ordem de invalidação após commit.
 
-Kubernetes permanece em CatalogAPI 0.3.0, com Mongo e sem Redis. Esta entrega é Docker; a futura imagem da CatalogAPI com Redis deve receber uma nova tag (sugestão 0.4.0), com configuração/infraestrutura Redis no cluster antes da validação daquela etapa. Nenhuma imagem é publicada automaticamente.
+## Kubernetes
+
+Os manifestos em k8s/catalog-redis incluem Deployment, Secret academico e Service ClusterIP. Mesma imagem redis:8.2.9-alpine, autenticacao, maxmemory 128mb, allkeys-lru e nenhum PVC/RDB/AOF. Probes executam PING autenticado. Recursos: requests 50m/64Mi, limits 500m/256Mi.
+
+CatalogAPI usa a imagem 0.4.0, Redis__Enabled=true, Redis__Configuration=catalog-redis:6379 e Redis__Password referenciado do Secret compartilhado com Redis. O Job real de migrations usa a mesma imagem, mas desabilita o cache. A readiness da API nao exige Redis: uma queda de cache nao deve retirar uma API saudavel de servico.
+
+Antes de aplicar a base completa, publique a imagem atual no repositorio CatalogAPI:
+
+```powershell
+docker build -t maicaoxd/fiap-cloud-games-catalog-api:0.4.0 .
+docker push maicaoxd/fiap-cloud-games-catalog-api:0.4.0
+```
+
+Na orquestracao:
+
+```powershell
+kubectl apply -k .\k8s
+kubectl rollout status deployment/catalog-redis -n fiap-cloud-games --timeout=300s
+kubectl rollout status deployment/catalog-api -n fiap-cloud-games --timeout=300s
+kubectl logs deployment/catalog-api -n fiap-cloud-games --follow
+```
+
+Em um cluster existente, se o Job catalog-api-migration ja terminou e sua imagem mudou, confira seu estado e remova apenas esse Job antes de reaplicar, pois seu template e imutavel. Nao remova bancos/PVCs.
+
+Inspecao autenticada, sem senha literal:
+
+```powershell
+kubectl exec -it deployment/catalog-redis -n fiap-cloud-games -- sh -c 'REDISCLI_AUTH="$FCG_REDIS_PASSWORD" redis-cli'
+```
+
+Use PING, TTL, EXISTS e HGET da chave exata, como no Docker. Para Redis Insight, deixe aberto em outro terminal:
+
+```powershell
+kubectl port-forward service/catalog-redis 6380:6379 -n fiap-cloud-games --address 127.0.0.1
+```
+
+Conecte host 127.0.0.1, porta 6380, usuario default e senha do Secret local. A porta 6380 evita conflito com Redis Docker em 6379. Pare com Ctrl+C. O Service continua interno.
+
+Para testar pelo Kong, abra outro terminal:
+
+```powershell
+kubectl port-forward service/kong-proxy 8005:8000 -n fiap-cloud-games --address 127.0.0.1
+```
+
+Use GET http://127.0.0.1:8005/catalog/games/{gameId} com JWT e repita os testes de MISS/HIT/TTL/invalidation. Nenhuma imagem e publicada automaticamente.
 
 Referência do provider: [cache distribuído no ASP.NET Core](https://learn.microsoft.com/en-us/aspnet/core/performance/caching/distributed?view=aspnetcore-10.0).
+
+### Estado da validacao Kubernetes em 13/09/2026
+
+Redis aplicado no contexto docker-desktop: Deployment 1/1 Ready sem reinicios, Service ClusterIP com endpoint pronto. PING autenticado aprovado; acesso sem senha rejeitado. Escrita/leitura e expiracao de uma chave temporaria em cinco segundos aprovadas; chave removida. Configuracoes 128 MiB/allkeys-lru/AOF desabilitado confirmadas. Kustomize e git diff --check validos; 115 testes CatalogAPI aprovados.
+
+Apos publicacao e subida pelo usuario, CatalogAPI 0.4.0 e Redis ficaram 1/1 Ready sem reinicios, e os quatro Jobs reais terminaram. Validacao integrada pelo Kong com JWT de fixture: GET MISS/HIT com payload identico; TTL 300 -> 298 sem renovacao; sem JWT 401; usuario comum PUT details 403; PUT Mongo e PUT SQL invalidaram e a leitura seguinte refletiu os novos valores; expiracao antecipada somente da chave temporaria e repopulacao aprovadas; desativacao 204 invalidou, GET 404 nao foi cacheado. CACHE MISS/HIT/INVALIDATED confirmados nos logs. Autenticacao e configuracoes Redis confirmadas novamente.
+
+Somente o jogo/documento temporarios foram removidos, apos verificar identidade e ausencia de referencias; chave ausente e port-forward temporario encerrado. Dados existentes preservados. Nenhuma queda/reinicio dos bancos ou Redis foi provocada nesta validacao Kubernetes: fallback em indisponibilidade permanece coberto pelos testes unitarios e pela validacao Docker anterior, nao por este teste integrado.
 
 ## Validação realizada no Docker
 

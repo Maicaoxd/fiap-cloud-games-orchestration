@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: catalog-api
-          image: maicaoxd/fiap-cloud-games-catalog-api:0.3.0
+          image: maicaoxd/fiap-cloud-games-catalog-api:0.4.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -28,6 +28,11 @@ spec:
             - secretRef:
                 name: catalog-api-secret
           env:
+            - name: Redis__Password
+              valueFrom:
+                secretKeyRef:
+                  name: catalog-redis-secret
+                  key: FCG_REDIS_PASSWORD
             - name: MongoDb__Password
               valueFrom:
                 secretKeyRef:

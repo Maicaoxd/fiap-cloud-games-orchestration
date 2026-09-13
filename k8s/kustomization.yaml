@@ -23,6 +23,9 @@ resources:
   - catalog-sqlserver/deployment.yaml
   - catalog-sqlserver/service.yaml
   - catalog-mongodb
+  - catalog-redis/secret.yaml
+  - catalog-redis/deployment.yaml
+  - catalog-redis/service.yaml
   - users-api/configmap.yaml
   - users-api/secret.yaml
   - users-api/migration-job.yaml

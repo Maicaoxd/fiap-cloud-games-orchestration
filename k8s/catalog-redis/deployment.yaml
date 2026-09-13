@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-redis
+  namespace: fiap-cloud-games
+  labels:
+    app: catalog-redis
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: catalog-redis
+  template:
+    metadata:
+      labels:
+        app: catalog-redis
+    spec:
+      containers:
+        - name: catalog-redis
+          image: redis:8.2.9-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - >-
+              exec redis-server --requirepass "$FCG_REDIS_PASSWORD"
+              --save "" --appendonly no --maxmemory 128mb
+              --maxmemory-policy allkeys-lru
+          ports:
+            - name: redis
+              containerPort: 6379
+          envFrom:
+            - secretRef:
+                name: catalog-redis-secret
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          startupProbe:
+            exec:
+              command: ["/bin/sh", "-ec", "test \"$(REDISCLI_AUTH=\"$FCG_REDIS_PASSWORD\" redis-cli ping)\" = PONG"]
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-ec", "test \"$(REDISCLI_AUTH=\"$FCG_REDIS_PASSWORD\" redis-cli ping)\" = PONG"]
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-ec", "test \"$(REDISCLI_AUTH=\"$FCG_REDIS_PASSWORD\" redis-cli ping)\" = PONG"]
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
