@@ -4,3 +4,5 @@ resources:
   - ../../observability
   - prometheus.yaml
   - grafana.yaml
+  - loki.yaml
+  - alloy.yaml

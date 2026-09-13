@@ -1,0 +1,61 @@
+logging {
+  level = "warn"
+}
+
+// Descobre somente as quatro aplicações no namespace FCG.
+discovery.kubernetes "applications" {
+  role = "pod"
+
+  namespaces {
+    names = ["fiap-cloud-games"]
+  }
+
+  selectors {
+    role = "pod"
+    label = "app in (notifications-function,users-api,catalog-api,payments-api)"
+    field = "status.phase=Running"
+  }
+}
+
+discovery.relabel "applications" {
+  targets = discovery.kubernetes.applications.targets
+
+  // Não coleta initContainers ou inicializadores.
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_init"]
+    regex = "true"
+    action = "drop"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app"]
+    target_label = "service"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    target_label = "namespace"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_name"]
+    target_label = "pod"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_name"]
+    target_label = "container"
+  }
+}
+
+// Lê os logs pela API Kubernetes, sem montar o socket ou arquivos dos nós.
+loki.source.kubernetes "applications" {
+  targets = discovery.relabel.applications.output
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

@@ -11,7 +11,7 @@ Ambiente local da plataforma FIAP Cloud Games, com Docker Compose e manifestos K
 - PaymentsAPI para simulação de pagamentos.
 - Notifications Function e Azurite no Docker e Kubernetes; NotificationsAPI opcional como alternativa legada.
 - Prometheus e Grafana para métricas das APIs.
-- Loki e Alloy para logs centralizados das aplicações no Docker, consultados pelo Grafana.
+- Loki e Alloy para logs centralizados das aplicações no Docker e Kubernetes, consultados pelo Grafana.
 
 A entrada HTTP de UsersAPI e CatalogAPI passa pelo Kong. Os prefixos públicos são /identity e /catalog; internamente as APIs recebem /api. As três operações públicas são cadastro, login e recuperação de senha. As demais exigem JWT; autorização por perfil também é validada pelas APIs.
 
@@ -161,7 +161,7 @@ Não habilite o perfil legado sem indicar o serviço: isso também inicia a Func
 
 ## Consultar logs no Grafana
 
-No Docker, Alloy coleta os logs de notifications-function, users-api, catalog-api e payments-api e envia ao Loki. O dashboard está em http://localhost:3000/d/fcg-logs, na pasta FIAP Cloud Games. Selecione a aplicação e o intervalo de tempo; a seleção inicial é a Function.
+Alloy coleta os logs de notifications-function, users-api, catalog-api e payments-api e envia ao Loki. No Docker, o dashboard está em http://localhost:3000/d/fcg-logs, na pasta FIAP Cloud Games. Selecione a aplicação e o intervalo de tempo; a seleção inicial é a Function.
 
 Para pesquisar uma notificação, abra Explore, selecione a fonte loki e use:
 
@@ -175,9 +175,9 @@ Para localizar uma compra, substitua ORDER_ID pelo identificador retornado na re
 {service="notifications-function"} |= "ORDER_ID"
 ```
 
-Loki armazena os logs em volume com retenção configurada de 72 horas. Alloy persiste os pontos de leitura em outro volume. Ambos ficam internos; o proxy de logs permite somente leitura de seções específicas da API Docker e não publica portas. Esse acesso ainda permite consultar metadados de containers, portanto não conecte outros serviços à rede docker-logs-network.
+Loki armazena os logs em volume com retenção configurada de 72 horas. No Docker, Alloy persiste os pontos de leitura em outro volume. Ambos ficam internos; o proxy de logs do Docker permite somente leitura de seções específicas da API e não publica portas. Esse acesso ainda permite consultar metadados de containers, portanto não conecte outros serviços à rede docker-logs-network.
 
-Os logs podem conter dados pessoais: use dados sintéticos nas demonstrações e não registre senhas ou tokens. O ambiente local não usa Grafana Cloud ou recursos Azure. A base Kubernetes mantém a coleta de métricas; estes componentes de logs pertencem ao Compose.
+Os logs podem conter dados pessoais: use dados sintéticos nas demonstrações e não registre senhas ou tokens. O ambiente local não usa Grafana Cloud ou recursos Azure. No Kubernetes, Alloy lê pela API do cluster com permissão de leitura de pods e seus logs somente no namespace fiap-cloud-games; não usa o proxy ou socket Docker.
 
 ## Construir e publicar imagens
 
@@ -260,6 +260,20 @@ kubectl port-forward svc/grafana 3001:3000 --address 127.0.0.1 -n fiap-cloud-gam
 ```
 
 Abra http://localhost:9091/targets e http://localhost:3001/d/fcg-apis. Services administrativos e bancos permanecem internos; volumes Docker e PVCs Kubernetes não compartilham dados.
+
+### Logs centralizados
+
+Loki e Alloy são incluídos na base em k8s/observability. Loki possui PVC de 1 GiB e Service ClusterIP na porta 3100. A configuração de armazenamento e retenção é a mesma do Docker. Alloy executa uma única réplica e descobre as quatro aplicações pela API Kubernetes; não coleta bancos, Jobs ou initContainers.
+
+O Kustomize gera as configurações e provisiona a fonte loki e o mesmo dashboard de logs usado no Docker. Após o encaminhamento do Grafana, abra http://localhost:3001/d/fcg-logs ou selecione loki no Explore. O endereço interno da fonte continua http://loki:3100; Docker e Kubernetes possuem históricos independentes.
+
+```powershell
+kubectl rollout status deployment/loki -n fiap-cloud-games --timeout=300s
+kubectl rollout status deployment/alloy -n fiap-cloud-games --timeout=300s
+kubectl logs deployment/alloy -n fiap-cloud-games --tail=100
+```
+
+Logs já enviados permanecem no Loki mesmo após recriar o pod da Function, até serem removidos pela retenção. Mantenha Alloy ativo durante as execuções; ele coleta os logs disponíveis pela API e não substitui o armazenamento no Loki. Não exclua o PVC para solucionar falhas. Services internos não são autenticação ou políticas de rede; os manifestos são destinados ao cluster local.
 
 ### Function e Azurite
 

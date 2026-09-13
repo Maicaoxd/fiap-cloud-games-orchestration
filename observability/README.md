@@ -125,7 +125,7 @@ Abra `http://localhost:9090/targets`: ambos os targets devem estar UP. No Grafan
 
 Os graficos mostram somente series existentes. Gere trafego que alcance as APIs; `rate` requer ao menos duas amostras do contador. Nao e necessario simular erro 5xx em producao nem alterar dados para verificar o dashboard. Disponibilidade UP significa coleta funcionando, nao que todas as dependencias do dominio estejam saudaveis.
 
-O ambiente coleta métricas HTTP e de processo de UsersAPI e CatalogAPI. No Docker, também centraliza logs das aplicações com Loki e Alloy. Não inclui alertas, tracing ou monitoração do Kong. Preserve os volumes ao parar o ambiente.
+O ambiente coleta métricas HTTP e de processo de UsersAPI e CatalogAPI e centraliza logs das aplicações com Loki e Alloy no Docker e Kubernetes. Não inclui alertas, tracing ou monitoração do Kong. Preserve os volumes ao parar o ambiente.
 
 ## Logs centralizados no Docker
 
@@ -185,7 +185,13 @@ Se o Loki rejeitar entradas antigas, gere um evento novo; a configuração rejei
 
 Os manifestos em `k8s/observability` definem Deployments, Services ClusterIP, PVCs e Secret local do Grafana. O Prometheus possui PVC de 2Gi e retencao de sete dias; o Grafana possui PVC de 1Gi. Os processos usam usuarios nao-root, probes de startup/readiness/liveness e limites de memoria.
 
+Loki possui PVC de 1 GiB, Service interno na porta 3100, WAL e a mesma configuração de retenção de 72 horas definida em loki/docker.yml. Alloy usa alloy/kubernetes.alloy, uma única réplica e descoberta pela API Kubernetes, sem socket Docker, acesso aos arquivos dos nós ou DaemonSet. Ambos possuem probes, limites de recursos e executam sem root. A raiz dos containers Loki e Alloy é somente para leitura; diretórios temporários usam emptyDir.
+
+A ServiceAccount alloy possui Role e RoleBinding somente em fiap-cloud-games: get/list/watch de pods e get de pods/log. Não recebe acesso a Secrets, escrita em recursos ou leitura de pods em outros namespaces. A descoberta seleciona os rótulos app das quatro aplicações e exclui initContainers. Os logs recebem os rótulos service, namespace, pod e container, sem IDs de usuário ou pedido como rótulos.
+
 O Kustomize gera os ConfigMaps diretamente dos arquivos deste diretorio, incluindo a fonte e o mesmo JSON do dashboard usado no Docker. O hash dos ConfigMaps altera o template dos Deployments quando os arquivos mudam, provocando rollout. Nao ha copias de dashboard para sincronizar.
+
+As fontes prometheus e loki e os dashboards fcg-apis e fcg-logs são compartilhados entre Docker e Kubernetes; o banco do Grafana e o histórico dos coletores são independentes em cada ambiente. A fonte Loki continua usando http://loki:3100 internamente.
 
 `prometheus/kubernetes.yml` usa Services `users-api:80` e `catalog-api:80`, em vez da porta 8080 dos containers Docker. Esta configuracao inicial pressupoe uma replica por API. Para escalar horizontalmente, substituir targets de Service por descoberta de endpoints/pods; coletar um Service balanceado nao identifica metricas por replica.
 
@@ -206,6 +212,8 @@ kubectl rollout status deployment/users-api -n fiap-cloud-games --timeout=300s
 kubectl rollout status deployment/catalog-api -n fiap-cloud-games --timeout=300s
 kubectl rollout status deployment/prometheus -n fiap-cloud-games --timeout=300s
 kubectl rollout status deployment/grafana -n fiap-cloud-games --timeout=300s
+kubectl rollout status deployment/loki -n fiap-cloud-games --timeout=300s
+kubectl rollout status deployment/alloy -n fiap-cloud-games --timeout=300s
 kubectl get pvc,services -n fiap-cloud-games
 ```
 
@@ -220,5 +228,14 @@ kubectl port-forward svc/grafana 3001:3000 --address 127.0.0.1 -n fiap-cloud-gam
 ```
 
 Abra `http://localhost:9091/targets` e confirme ambos os jobs UP. Grafana em `http://localhost:3001/d/fcg-apis`, login local inicial `admin` / `fcg-local-grafana`. A fonte usa `http://prometheus:9090` internamente, nao a porta encaminhada 9091. PVCs novos nao recebem automaticamente o historico dos volumes do Compose.
+
+Para os logs, abra http://localhost:3001/d/fcg-logs ou use a fonte loki no Explore com as mesmas consultas LogQL da seção Docker. Cadastre um usuário e faça uma compra pelo Kong encaminhado; confirme as notificações e a biblioteca. Logs enviados continuam consultáveis após a recriação dos pods, até a retenção removê-los. Mantenha Alloy ativo durante o fluxo; logs indisponíveis na API não podem ser recuperados pelo coletor. Seu diretório de trabalho é temporário; a persistência dos logs coletados pertence ao PVC do Loki.
+
+```powershell
+kubectl logs deployment/alloy -n fiap-cloud-games --tail=100
+kubectl logs deployment/loki -n fiap-cloud-games --tail=100
+```
+
+Se houver Forbidden nos logs do Alloy, confira ServiceAccount, Role e RoleBinding. Sem resultados no Grafana, confira a conexão da fonte loki, o intervalo de tempo, a coleta e se a aplicação está executando no namespace correto. Nenhum componente requer Grafana Cloud ou publicação na Azure. O Loki não habilita autenticação neste exemplo; ClusterIP não substitui controles de rede e acesso para ambientes publicados.
 
 Consulte erros com `kubectl logs deployment/prometheus -n fiap-cloud-games` e `kubectl logs deployment/grafana -n fiap-cloud-games`. A senha no Secret e somente academica; substituir antes de um ambiente publicado. Services internos nao substituem politicas de rede e controle de acesso ao cluster.
