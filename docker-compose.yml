@@ -1,4 +1,36 @@
 services:
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./observability/prometheus/docker.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - fcg-network
+
+  grafana:
+    image: grafana/grafana:13.2.1
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: "${FCG_GRAFANA_PASSWORD:-fcg-local-grafana}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - fcg-network
+
   kong-database:
     image: postgres:16-alpine
     environment:
@@ -281,6 +313,8 @@ services:
       - fcg-network
 
 volumes:
+  prometheus-data:
+  grafana-data:
   kong-postgres-data:
   users-sqlserver-data:
   catalog-sqlserver-data:

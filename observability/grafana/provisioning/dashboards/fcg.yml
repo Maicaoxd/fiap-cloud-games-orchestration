@@ -1,0 +1,11 @@
+apiVersion: 1
+providers:
+  - name: FCG
+    orgId: 1
+    folder: FIAP Cloud Games
+    type: file
+    disableDeletion: true
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
