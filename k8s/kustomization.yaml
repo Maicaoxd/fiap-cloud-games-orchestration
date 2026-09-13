@@ -2,6 +2,7 @@
 kind: Kustomization
 resources:
   - namespace.yaml
+  - observability
   - ../kong
   - kong/secret.yaml
   - kong/configmap.yaml

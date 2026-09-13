@@ -8,7 +8,7 @@ metadata:
     job: users-api-migration
 spec:
   backoffLimit: 3
-  activeDeadlineSeconds: 300
+  activeDeadlineSeconds: 600
   template:
     metadata:
       labels:
@@ -45,7 +45,7 @@ spec:
               echo "SQL Server disponivel; iniciando migrations."
       containers:
         - name: users-api-migration
-          image: maicaoxd/fiap-cloud-games-users-api:0.1.2
+          image: maicaoxd/fiap-cloud-games-users-api:0.2.0
           imagePullPolicy: IfNotPresent
           command: ["dotnet", "UsersAPI.dll", "--migrate"]
           envFrom:

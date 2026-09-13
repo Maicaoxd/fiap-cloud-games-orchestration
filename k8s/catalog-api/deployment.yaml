@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: catalog-api
-          image: maicaoxd/fiap-cloud-games-catalog-api:0.1.0
+          image: maicaoxd/fiap-cloud-games-catalog-api:0.2.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

@@ -10,6 +10,15 @@ Compose e Kubernetes incluem Kong Gateway OSS com PostgreSQL e migrations. A ent
 
 Consulte [configuracao e validacao do Kong](kong/README.md) para Services, Routes, JWT e scripts idempotentes.
 
+## Observabilidade no Docker
+
+UsersAPI e CatalogAPI expoem `/metrics` internamente. O Prometheus coleta as duas APIs; Grafana carrega a fonte Prometheus e o dashboard `FIAP Cloud Games - APIs` por arquivos versionados, com sete paineis e filtro por API. As configuracoes podem ser exploradas e editadas pela interface.
+
+- Prometheus: `http://localhost:9090`.
+- Grafana: `http://localhost:3000` (login local inicial `admin` / `fcg-local-grafana`).
+
+Consulte [configuracao e uso](observability/README.md). Os manifestos de observabilidade Kubernetes estao em `k8s/observability`; antes de aplica-los, disponibilize as imagens instrumentadas 0.2.0 das APIs no cluster ou no registry.
+
 ## Repositorios esperados
 
 A estrutura local esperada e que os repositorios fiquem lado a lado:
@@ -168,7 +177,7 @@ CatalogAPI publica OrderPlacedEvent
 
 Os manifests ficam em `k8s/` e usam `Kustomization` para consolidar infraestrutura e aplicacoes.
 
-Os Jobs de migrations de UsersAPI e CatalogAPI possuem um `initContainer` que aguarda uma consulta `SELECT 1` autenticada no SQL Server antes de iniciar o migrator. A senha vem do Secret do respectivo banco. O limite total de cada Job continua em 300 segundos, incluindo essa espera.
+Os Jobs de migrations de UsersAPI e CatalogAPI possuem um `initContainer` que aguarda uma consulta `SELECT 1` autenticada no SQL Server antes de iniciar o migrator. A senha vem do Secret do respectivo banco. O limite total de cada Job e 600 segundos, incluindo downloads e essa espera, para acomodar uma primeira subida sem imagens em cache.
 
 Aplicar:
 
@@ -218,8 +227,8 @@ kubectl port-forward svc/rabbitmq 15672:15672 -n fiap-cloud-games
 Os manifests Kubernetes usam imagens do Docker Hub:
 
 ```text
-maicaoxd/fiap-cloud-games-users-api:0.1.2
-maicaoxd/fiap-cloud-games-catalog-api:0.1.0
+maicaoxd/fiap-cloud-games-users-api:0.2.0
+maicaoxd/fiap-cloud-games-catalog-api:0.2.0
 maicaoxd/fiap-cloud-games-payments-api:0.1.0
 maicaoxd/fiap-cloud-games-notifications-api:0.1.1
 ```

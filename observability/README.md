@@ -128,6 +128,8 @@ Ainda nao existem alertas, logs centralizados, tracing, metricas de negocio ou m
 
 ## Kubernetes
 
+Validado no Docker Desktop: UsersAPI/CatalogAPI 0.2.0 em execucao, quatro Jobs concluidos, PVCs Bound, dois targets UP e sete consultas do dashboard executadas pelo Grafana. Na primeira subida sem cache, os Jobs de migrations atingiram o antigo limite de cinco minutos; o limite foi ampliado para dez minutos e os dois Jobs foram recriados, preservando os bancos.
+
 Os manifestos em `k8s/observability` definem Deployments, Services ClusterIP, PVCs e Secret local do Grafana. O Prometheus possui PVC de 2Gi e retencao de sete dias; o Grafana possui PVC de 1Gi. Os processos usam usuarios nao-root, probes de startup/readiness/liveness e limites de memoria.
 
 O Kustomize gera os ConfigMaps diretamente dos arquivos deste diretorio, incluindo a fonte e o mesmo JSON do dashboard usado no Docker. O hash dos ConfigMaps altera o template dos Deployments quando os arquivos mudam, provocando rollout. Nao ha copias de dashboard para sincronizar.
@@ -136,7 +138,7 @@ O Kustomize gera os ConfigMaps diretamente dos arquivos deste diretorio, incluin
 
 ### Imagens instrumentadas
 
-Os Deployments e Jobs de migrations agora referenciam UsersAPI e CatalogAPI `0.2.0`. Essas tags precisam existir no registry ou estar carregadas no runtime dos nos antes do deploy. Alterar o YAML nao publica uma imagem. Nao foi possivel gerar/publicar essas tags nem validar no cluster nesta etapa: a solicitacao de build foi recusada e o kubeconfig estava sem contexto.
+Os Deployments e Jobs de migrations referenciam UsersAPI e CatalogAPI `0.2.0`, publicadas no Docker Hub. Em futuras versoes, as tags precisam existir no registry ou estar carregadas no runtime dos nos antes do deploy. Alterar o YAML nao publica uma imagem.
 
 Para gerar a partir dos repositorios instrumentados, na raiz da orquestracao:
 
@@ -156,7 +158,7 @@ Como os Jobs de migrations tiveram a imagem alterada, e necessario recria-los pa
 ```powershell
 kubectl delete job users-api-migration catalog-api-migration -n fiap-cloud-games --ignore-not-found
 kubectl apply -k ./k8s
-kubectl wait --for=condition=complete job/users-api-migration job/catalog-api-migration -n fiap-cloud-games --timeout=300s
+kubectl wait --for=condition=complete job/users-api-migration job/catalog-api-migration -n fiap-cloud-games --timeout=600s
 kubectl rollout status deployment/users-api -n fiap-cloud-games --timeout=300s
 kubectl rollout status deployment/catalog-api -n fiap-cloud-games --timeout=300s
 kubectl rollout status deployment/prometheus -n fiap-cloud-games --timeout=300s
