@@ -1,7 +1,7 @@
 services:
   rabbitmq-topology:
-    image: python:3.13-alpine
-    command: ["python", "/config/configure.py"]
+    image: mcr.microsoft.com/powershell:7.4-ubuntu-22.04
+    command: ["pwsh", "-NoProfile", "-File", "/config/configure-rabbitmq.ps1"]
     environment:
       RABBITMQ_USERNAME: guest
       RABBITMQ_PASSWORD: guest

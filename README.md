@@ -140,7 +140,7 @@ O Docker executa notifications-function por padrão. Cada fila de notificação 
 - notifications-user-created-event
 - notifications-payment-processed-event
 
-O serviço rabbitmq-topology configura e verifica as filas e bindings sem remover mensagens. A Function não envia e-mails reais e o Azurite não cria recursos na Azure.
+O serviço rabbitmq-topology executa o script PowerShell rabbitmq/configure-rabbitmq.ps1 do repositório da Function. Ele configura e verifica as filas, exchanges e bindings sem remover mensagens. A Function não envia e-mails reais e o Azurite não cria recursos na Azure.
 
 Para usar a NotificationsAPI em vez da Function:
 
