@@ -7,6 +7,11 @@ data:
   ASPNETCORE_ENVIRONMENT: Development
   ASPNETCORE_URLS: http://+:8080
   Api__UseDeveloperExceptionPage: "false"
+  MongoDb__ConnectionString: mongodb://catalog-mongodb:27017
+  MongoDb__Username: fcg-catalog
+  MongoDb__DatabaseName: FiapCloudGamesCatalog
+  MongoDb__CollectionName: game_details
+  MongoDb__OperationTimeoutSeconds: "2"
   Jwt__Issuer: FiapCloudGames
   Jwt__Audience: FiapCloudGames
   Jwt__ExpirationMinutes: "60"

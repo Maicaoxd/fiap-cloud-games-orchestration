@@ -17,7 +17,13 @@ UsersAPI e CatalogAPI expoem `/metrics` internamente. O Prometheus coleta as dua
 - Prometheus: `http://localhost:9090`.
 - Grafana: `http://localhost:3000` (login local inicial `admin` / `fcg-local-grafana`).
 
-Consulte [configuracao e uso](observability/README.md). Os manifestos de observabilidade Kubernetes estao em `k8s/observability`; antes de aplica-los, disponibilize as imagens instrumentadas 0.2.0 das APIs no cluster ou no registry.
+Consulte [configuracao e uso](observability/README.md). Os manifestos de observabilidade Kubernetes estao em `k8s/observability`. As imagens esperadas sao UsersAPI 0.2.0 e CatalogAPI 0.3.0 (observabilidade e Mongo).
+
+## MongoDB no Docker e Kubernetes
+
+A CatalogAPI agora compoe a consulta individual de jogos com detalhes opcionais do MongoDB. Preço, disponibilidade, compras e biblioteca permanecem no SQL Server. O banco Mongo tem autenticacao e volume persistente. No Docker, `127.0.0.1:27017` permite conexao local pelo Compass. Kubernetes permanece interno e inclui Deployment, Service ClusterIP, PVC de 2 GiB e Secret em `k8s/catalog-mongodb`, reutilizando o script de inicializacao do Docker.
+
+Consulte [contrato, comandos e testes do MongoDB](mongodb/README.md).
 
 ## Repositorios esperados
 
@@ -44,6 +50,7 @@ O compose sobe:
 - `rabbitmq`: broker de mensageria com Management UI.
 - `users-sqlserver`: banco SQL Server da UsersAPI.
 - `catalog-sqlserver`: banco SQL Server da CatalogAPI.
+- `catalog-mongodb`: detalhes opcionais do catalogo, persistentes e internos.
 - `users-api-migrator`: aplica migrations da UsersAPI.
 - `catalog-api-migrator`: aplica migrations da CatalogAPI.
 - `users-api`: cadastro, login, JWT e publicacao de `UserCreatedEvent`.
@@ -184,6 +191,9 @@ Aplicar:
 ```powershell
 # Recria somente o configurador para reaplicar mudancas de Routes/plugins.
 kubectl delete job kong-configure -n fiap-cloud-games --ignore-not-found
+# Ao atualizar um cluster existente para CatalogAPI 0.3.0:
+# verifique se a migration anterior terminou antes de recriar o Job.
+kubectl delete job catalog-api-migration -n fiap-cloud-games --ignore-not-found
 kubectl apply -k .\k8s
 kubectl wait --for=condition=complete job/kong-migrations -n fiap-cloud-games --timeout=300s
 kubectl rollout status deployment/kong -n fiap-cloud-games --timeout=300s
@@ -205,6 +215,7 @@ Ver logs:
 ```powershell
 kubectl logs deployment/users-api -n fiap-cloud-games
 kubectl logs deployment/catalog-api -n fiap-cloud-games
+kubectl logs deployment/catalog-mongodb -n fiap-cloud-games
 kubectl logs deployment/payments-api -n fiap-cloud-games
 kubectl logs deployment/notifications-api -n fiap-cloud-games
 ```

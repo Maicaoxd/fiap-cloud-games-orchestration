@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-mongodb
+  namespace: fiap-cloud-games
+  labels:
+    app: catalog-mongodb
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: catalog-mongodb
+  template:
+    metadata:
+      labels:
+        app: catalog-mongodb
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: catalog-mongodb
+          image: mongo:8.0.29
+          imagePullPolicy: IfNotPresent
+          args: ["--wiredTigerCacheSizeGB", "0.25"]
+          ports:
+            - name: mongodb
+              containerPort: 27017
+          envFrom:
+            - secretRef:
+                name: catalog-mongodb-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+          startupProbe:
+            tcpSocket:
+              port: mongodb
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command:
+                - mongosh
+                - --quiet
+                - --eval
+                - |
+                  const c = db.getSiblingDB(process.env.MONGO_INITDB_DATABASE);
+                  if (!c.auth("fcg-catalog", process.env.FCG_MONGODB_PASSWORD)) quit(1);
+                  quit(c.runCommand({ping: 1}).ok ? 0 : 1);
+            timeoutSeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: mongodb
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: catalog-mongodb-pvc
+        - name: init
+          configMap:
+            name: catalog-mongodb-init

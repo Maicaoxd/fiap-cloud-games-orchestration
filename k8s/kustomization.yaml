@@ -22,6 +22,7 @@ resources:
   - catalog-sqlserver/pvc.yaml
   - catalog-sqlserver/deployment.yaml
   - catalog-sqlserver/service.yaml
+  - catalog-mongodb
   - users-api/configmap.yaml
   - users-api/secret.yaml
   - users-api/migration-job.yaml

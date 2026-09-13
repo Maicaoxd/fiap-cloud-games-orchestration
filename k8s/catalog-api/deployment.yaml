@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: catalog-api
-          image: maicaoxd/fiap-cloud-games-catalog-api:0.2.0
+          image: maicaoxd/fiap-cloud-games-catalog-api:0.3.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -27,6 +27,12 @@ spec:
                 name: catalog-api-configmap
             - secretRef:
                 name: catalog-api-secret
+          env:
+            - name: MongoDb__Password
+              valueFrom:
+                secretKeyRef:
+                  name: catalog-mongodb-secret
+                  key: FCG_MONGODB_PASSWORD
           startupProbe:
             httpGet:
               path: /health/live
